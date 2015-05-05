@@ -1,3 +1,4 @@
+/* global chrome */
 // Global Variables - When possible pulling form Local Storage set via Options page.
 var activeWindows = new Array();
 var timeDelay = 10000;

@@ -10,8 +10,8 @@ input {font-size:.8em;border:1px solid #ccc;padding:3px;}
 label {font-size:.8em;}
 label.inline {margin: 0 0 0 5em}
 span.example {font-size:.7em;color:#999;display:block;}
-div#settings {margin:0 2em;background-color: #ffffff;border: 1px solid #ccc;border-radius: 10px 10px;padding: 10px 30px 30px 30px;}
-div#settings p {border-bottom: 1px dotted #ccc;padding-bottom:3px;}
+div#settings, div#adv-settings {margin:0 2em;background-color: #ffffff;border: 1px solid #ccc;border-radius: 10px 10px;padding: 10px 30px 30px 30px;}
+div#settings p, div#adv-settings p {border-bottom: 1px dotted #ccc;padding-bottom:3px;}
 span#status, span#status2 {color:#ff6103;padding:0 1em;font-weight:bold;font-size:10px;}
 div.saveheader {margin:.5em 2em .5em 0;text-align:right;}
 p.thanks {font-size:.8em;margin:2em 0;}
@@ -32,8 +32,8 @@ input.enable {margin:0 1em 0 0;text-align:right}
 <p><label for="inactive">Rotate only when inactive:</label> <input type="checkbox" name="inactive" id="inactive"><span class="example"><strong>Rotation will pause</strong> if the browser has been interacted with within 15 seconds.</span></p>
 <button id="save">Save</button><span id="status2"></span>
 </div>
-<div id="settings" class="adv-settings" style="margin-top:10px"> 
-<p>Advanced Settings <span class="example">Select the checkbox to enable individual settings on a tab</span></p>	
+<div id="adv-settings" class="adv-settings" style="margin-top:10px">
+<p>Advanced Settings <span class="example">Select the checkbox to enable individual settings on a tab</span></p>
 </div>
 <p class="thanks">Special thanks for <a href="https://code.google.com/p/revolver-chrome-extensions/">open source code contributions</a> from Fred Emmott and Aurimas Liutikas.</p>
 </body>

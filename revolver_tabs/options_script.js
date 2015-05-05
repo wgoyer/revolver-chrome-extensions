@@ -1,6 +1,35 @@
 /* global chrome */
 var bg = chrome.extension.getBackgroundPage();
 // Saves options to localStorage.
+function add_event_listeners(){
+    build_current_tabs_list();
+    document.querySelector('#save').addEventListener('click', save_options);
+    document.querySelector('#savetop').addEventListener('click', save_options);
+}
+
+function save_advanced_options(){
+    var advUriObjectArray = [],
+        advancedSettings = document.getElementById("adv-settings"),
+        advancedDivs = advancedSettings.getElementsByTagName("div"),
+        divInputTags = "";
+        for(var i = 0, checkboxes=0;i<advancedDivs.length;i++){
+           if(advancedDivs[i].getElementsByClassName("enable")[0].checked == true){
+               divInputTags = advancedDivs[i].getElementsByTagName("input");
+            advUriObjectArray.push({
+               "uri" : advancedDivs[i].innerHTML,
+               "reload" : divInputTags[0],
+               "seconds" : divInputTags[1]
+            });               
+           } 
+           console.log(advUriObjectArray);
+        }
+}
+
+//function restore_advanced_options(){
+//    
+//}
+
+
 function save_options() {
         localStorage["seconds"] = document.getElementById("seconds").value;
         bg.timeDelay = (document.getElementById("seconds").value*1000);
@@ -78,16 +107,40 @@ function restore_options() {
         }
 }
 
-function get_current_tabs(){
+function generate_advanced_settings_html(tab){
+    var advancedSettings = document.getElementsByClassName("adv-settings")[0],
+        enableHtmlChunk = '<div><input type="checkbox" class="enable" name="'+tab.id+'_enable" id="'+tab.id+'_enable">',
+        iconAndUriChunk = '<img class="icon" src='+tab.favIconUrl+'\>'+tab.url,
+        secondsChunk = '<p><label for="seconds">Seconds:</label> <input type="text" name="seconds" id="'+tab.id+'_seconds" style="width:30px;">',
+        reloadChunk = '<label class="inline" for="'+tab.id+'_reload">Reload:</label> <input type="checkbox" name="'+tab.id+'_reload" id="'+tab.id+'_reload"></p></div>';
+        advancedSettings.innerHTML += enableHtmlChunk + iconAndUriChunk + secondsChunk + reloadChunk;
+};
+
+function build_current_tabs_list(){
     chrome.tabs.query({}, function(tabs){
        tabs.forEach(function(tab){
-          document.getElementsByClassName("adv-settings")[0].innerHTML += '<div><input type="checkbox" class="enable" name="'+tab.id+'_enable" id="'+tab.id+'_enable"><img class="icon" src='+tab.favIconUrl+'\>'+tab.url+' <p><label for="seconds">Seconds:</label> <input type="text" name="seconds" id="'+tab.id+'_seconds" style="width:30px;"><label class="inline" for="'+tab.id+'_reload">Reload:</label> <input type="checkbox" name="'+tab.id+'_reload" id="'+tab.id+'_reload"></p></div>'; 
+           if(tab.url.substring(0, 16)!="chrome-extension"){ 
+            generate_advanced_settings_html(tab); 
+           }
        });
+       create_advanced_save_button(); 
     });
 }
 
+function create_advanced_save_button(){
+//    document.getElementsByClassName("adv-settings")[0].innerHTML += '<button id="adv-save">Save</button><span id="status3"></span>';
+    var parent = document.querySelector("#adv-settings"),
+        advSaveButton = document.createElement('button'),
+        advSaveIndicator = document.createElement('span');
+    advSaveButton.setAttribute("id", "adv-save");
+    advSaveButton.innerText = "Save";
+    advSaveIndicator.setAttribute("id", "status3");
+    advSaveButton.addEventListener('click', save_advanced_options);
+    parent.appendChild(advSaveButton);
+    parent.appendChild(advSaveIndicator);
+  
+}
+
+
 // Adding listeners for restoring and saving options
-get_current_tabs();
-document.addEventListener('DOMContentLoaded', restore_options);
-document.querySelector('#save').addEventListener('click', save_options);
-document.querySelector('#savetop').addEventListener('click', save_options);
+document.addEventListener('DOMContentLoaded', add_event_listeners);
