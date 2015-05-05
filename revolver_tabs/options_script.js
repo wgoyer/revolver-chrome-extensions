@@ -1,3 +1,4 @@
+/* global chrome */
 var bg = chrome.extension.getBackgroundPage();
 // Saves options to localStorage.
 function save_options() {
@@ -77,7 +78,16 @@ function restore_options() {
         }
 }
 
+function get_current_tabs(){
+    chrome.tabs.query({}, function(tabs){
+       tabs.forEach(function(tab){
+          document.getElementsByClassName("adv-settings")[0].innerHTML += '<div><input type="checkbox" class="enable" name="'+tab.id+'_enable" id="'+tab.id+'_enable"><img class="icon" src='+tab.favIconUrl+'\>'+tab.url+' <p><label for="seconds">Seconds:</label> <input type="text" name="seconds" id="'+tab.id+'_seconds" style="width:30px;"><label class="inline" for="'+tab.id+'_reload">Reload:</label> <input type="checkbox" name="'+tab.id+'_reload" id="'+tab.id+'_reload"></p></div>'; 
+       });
+    });
+}
+
 // Adding listeners for restoring and saving options
+get_current_tabs();
 document.addEventListener('DOMContentLoaded', restore_options);
 document.querySelector('#save').addEventListener('click', save_options);
 document.querySelector('#savetop').addEventListener('click', save_options);
