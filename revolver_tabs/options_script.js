@@ -11,12 +11,12 @@ function save_advanced_options(){
     var advUriObjectArray = [],
         advancedSettings = document.getElementById("adv-settings"),
         advancedDivs = advancedSettings.getElementsByTagName("div"),
-        divInputTags = "";
+        divInputTags;
         for(var i = 0, checkboxes=0;i<advancedDivs.length;i++){
            if(advancedDivs[i].getElementsByClassName("enable")[0].checked == true){
                divInputTags = advancedDivs[i].getElementsByTagName("input");
             advUriObjectArray.push({
-               "uri" : advancedDivs[i].innerHTML,
+               "uri" : advancedDivs[i].innerText,
                "reload" : divInputTags[0],
                "seconds" : divInputTags[1]
             });               
