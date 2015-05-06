@@ -2,32 +2,39 @@
 var bg = chrome.extension.getBackgroundPage();
 // Saves options to localStorage.
 function add_event_listeners(){
+    restore_options();
+    restore_advanced_options();
     build_current_tabs_list();
     document.querySelector('#save').addEventListener('click', save_options);
     document.querySelector('#savetop').addEventListener('click', save_options);
 }
 
 function save_advanced_options(){
-    var advUriObjectArray = [],
+    var advUrlObjectArray = [],
         advancedSettings = document.getElementById("adv-settings"),
         advancedDivs = advancedSettings.getElementsByTagName("div"),
         divInputTags;
         for(var i = 0, checkboxes=0;i<advancedDivs.length;i++){
            if(advancedDivs[i].getElementsByClassName("enable")[0].checked == true){
                divInputTags = advancedDivs[i].getElementsByTagName("input");
-            advUriObjectArray.push({
-               "uri" : advancedDivs[i].innerText,
-               "reload" : divInputTags[0],
-               "seconds" : divInputTags[1]
-            });               
+                advUrlObjectArray.push({
+                    "url" : advancedDivs[i].getElementsByClassName("url-text")[0].value,
+                    "reload" : divInputTags[3].checked,
+                    "seconds" : divInputTags[2].value,
+                    "favIconUrl": advancedDivs[i].getElementsByClassName("icon")[0].src
+                });               
            } 
-           console.log(advUriObjectArray);
         }
+        localStorage["revolverSettings"] = JSON.stringify(advUrlObjectArray);
+        console.log(advUrlObjectArray);
 }
 
-//function restore_advanced_options(){
-//    
-//}
+function restore_advanced_options(){
+    var settings = JSON.parse(localStorage["revolverSettings"]);
+    for(var i=0;i<settings.length;i++){
+        generate_advanced_settings_html(settings[i], true);
+    }
+}
 
 
 function save_options() {
@@ -107,20 +114,34 @@ function restore_options() {
         }
 }
 
-function generate_advanced_settings_html(tab){
+function generate_advanced_settings_html(tab, saved){
     var advancedSettings = document.getElementsByClassName("adv-settings")[0],
-        enableHtmlChunk = '<div><input type="checkbox" class="enable" name="'+tab.id+'_enable" id="'+tab.id+'_enable">',
-        iconAndUriChunk = '<img class="icon" src='+tab.favIconUrl+'\>'+tab.url,
-        secondsChunk = '<p><label for="seconds">Seconds:</label> <input type="text" name="seconds" id="'+tab.id+'_seconds" style="width:30px;">',
-        reloadChunk = '<label class="inline" for="'+tab.id+'_reload">Reload:</label> <input type="checkbox" name="'+tab.id+'_reload" id="'+tab.id+'_reload"></p></div>';
-        advancedSettings.innerHTML += enableHtmlChunk + iconAndUriChunk + secondsChunk + reloadChunk;
+        enableHtmlChunk = '<div><input type="checkbox" class="enable" name="enable">',
+        iconAndUrlChunk = '<img class="icon" src='+tab.favIconUrl+'\><input class="url-text" type="text" value="'+tab.url+'">',
+        secondsChunk = '<p><label for="seconds">Seconds:</label> <input type="text" name="seconds" value="10" style="width:30px;">',
+        reloadChunk = '<label class="inline" for="reload">Reload:</label> <input type="checkbox" name="reload"></p></div>';
+        if(saved){ 
+            enableHtmlChunk = '<div><input type="checkbox" class="enable" name="enable" checked>';
+            secondsChunk = '<p><label for="seconds">Seconds:</label> <input type="text" name="seconds" value="'+tab.seconds+'" style="width:30px;">';
+            reloadChunk = '<label class="inline" for="reload">Reload:</label> <input type="checkbox" name="reload" checked></p></div>';
+        }
+        advancedSettings.innerHTML += enableHtmlChunk + iconAndUrlChunk + secondsChunk + reloadChunk;
 };
 
 function build_current_tabs_list(){
+    var storage = JSON.parse(localStorage["revolverSettings"]);
     chrome.tabs.query({}, function(tabs){
        tabs.forEach(function(tab){
-           if(tab.url.substring(0, 16)!="chrome-extension"){ 
-            generate_advanced_settings_html(tab); 
+           if(storage.length>0){
+                for(var i=0;i<storage.length;i++){
+                    if(tab.url != storage[i].url && tab.url.substring(0, 16) != "chrome-extension" && storage.length === i-1){
+                        generate_advanced_settings_html(tab);
+                    }       
+                }
+           } else {
+               if(tab.url.substring(0, 16) != "chrome-extension"){
+                   generate_advanced_settings_html(tab);
+               }
            }
        });
        create_advanced_save_button(); 
@@ -128,19 +149,16 @@ function build_current_tabs_list(){
 }
 
 function create_advanced_save_button(){
-//    document.getElementsByClassName("adv-settings")[0].innerHTML += '<button id="adv-save">Save</button><span id="status3"></span>';
     var parent = document.querySelector("#adv-settings"),
-        advSaveButton = document.createElement('button'),
-        advSaveIndicator = document.createElement('span');
+        advSaveButton = document.createElement("button"),
+        advSaveIndicator = document.createElement("span");
     advSaveButton.setAttribute("id", "adv-save");
     advSaveButton.innerText = "Save";
     advSaveIndicator.setAttribute("id", "status3");
-    advSaveButton.addEventListener('click', save_advanced_options);
+    advSaveButton.addEventListener("click", save_advanced_options);
     parent.appendChild(advSaveButton);
-    parent.appendChild(advSaveIndicator);
-  
+    parent.appendChild(advSaveIndicator); 
 }
-
 
 // Adding listeners for restoring and saving options
 document.addEventListener('DOMContentLoaded', add_event_listeners);
