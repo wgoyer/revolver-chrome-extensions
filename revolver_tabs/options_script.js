@@ -9,34 +9,7 @@ function add_event_listeners(){
     document.querySelector('#savetop').addEventListener('click', save_options);
 }
 
-function save_advanced_options(){
-    var advUrlObjectArray = [],
-        advancedSettings = document.getElementById("adv-settings"),
-        advancedDivs = advancedSettings.getElementsByTagName("div"),
-        divInputTags;
-        for(var i = 0, checkboxes=0;i<advancedDivs.length;i++){
-           if(advancedDivs[i].getElementsByClassName("enable")[0].checked == true){
-               divInputTags = advancedDivs[i].getElementsByTagName("input");
-                advUrlObjectArray.push({
-                    "url" : advancedDivs[i].getElementsByClassName("url-text")[0].value,
-                    "reload" : divInputTags[3].checked,
-                    "seconds" : divInputTags[2].value,
-                    "favIconUrl": advancedDivs[i].getElementsByClassName("icon")[0].src
-                });               
-           } 
-        }
-        localStorage["revolverSettings"] = JSON.stringify(advUrlObjectArray);
-        console.log(advUrlObjectArray);
-}
-
-function restore_advanced_options(){
-    var settings = JSON.parse(localStorage["revolverSettings"]);
-    for(var i=0;i<settings.length;i++){
-        generate_advanced_settings_html(settings[i], true);
-    }
-}
-
-
+//Base options code (TODO:  Change settings to revolverSettings object)
 function save_options() {
         localStorage["seconds"] = document.getElementById("seconds").value;
         bg.timeDelay = (document.getElementById("seconds").value*1000);
@@ -114,6 +87,35 @@ function restore_options() {
         }
 }
 
+//Advanced options code
+function save_advanced_options(){
+    var advUrlObjectArray = [],
+        advancedSettings = document.getElementById("adv-settings"),
+        advancedDivs = advancedSettings.getElementsByTagName("div"),
+        divInputTags;
+        for(var i = 0, checkboxes=0;i<advancedDivs.length;i++){
+           if(advancedDivs[i].getElementsByClassName("enable")[0].checked == true){
+               divInputTags = advancedDivs[i].getElementsByTagName("input");
+                advUrlObjectArray.push({
+                    "url" : advancedDivs[i].getElementsByClassName("url-text")[0].value,
+                    "reload" : divInputTags[3].checked,
+                    "seconds" : divInputTags[2].value,
+                    "favIconUrl": advancedDivs[i].getElementsByClassName("icon")[0].src
+                });               
+           }
+        }
+        localStorage["revolverSettings"] = JSON.stringify(advUrlObjectArray);
+}
+
+function restore_advanced_options(){
+    var settings = JSON.parse(localStorage["revolverSettings"]);
+    if(settings.length>0){
+        for(var i=0;i<settings.length;i++){
+            generate_advanced_settings_html(settings[i], true);
+        }    
+    }
+}
+
 function generate_advanced_settings_html(tab, saved){
     var advancedSettings = document.getElementsByClassName("adv-settings")[0],
         enableHtmlChunk = '<div><input type="checkbox" class="enable" name="enable">',
@@ -123,28 +125,65 @@ function generate_advanced_settings_html(tab, saved){
         if(saved){ 
             enableHtmlChunk = '<div><input type="checkbox" class="enable" name="enable" checked>';
             secondsChunk = '<p><label for="seconds">Seconds:</label> <input type="text" name="seconds" value="'+tab.seconds+'" style="width:30px;">';
-            reloadChunk = '<label class="inline" for="reload">Reload:</label> <input type="checkbox" name="reload" checked></p></div>';
+            if(tab.reload){
+                reloadChunk = '<label class="inline" for="reload">Reload:</label> <input type="checkbox" name="reload" checked></p></div>';    
+            } 
         }
         advancedSettings.innerHTML += enableHtmlChunk + iconAndUrlChunk + secondsChunk + reloadChunk;
 };
 
-function build_current_tabs_list(){
-    var storage = JSON.parse(localStorage["revolverSettings"]);
+function get_current_tabs(callback){
+    var returnTabs=[];
     chrome.tabs.query({}, function(tabs){
        tabs.forEach(function(tab){
-           if(storage.length>0){
-                for(var i=0;i<storage.length;i++){
-                    if(tab.url != storage[i].url && tab.url.substring(0, 16) != "chrome-extension" && storage.length === i-1){
-                        generate_advanced_settings_html(tab);
-                    }       
-                }
-           } else {
-               if(tab.url.substring(0, 16) != "chrome-extension"){
-                   generate_advanced_settings_html(tab);
-               }
-           }
+          if(tab.url.substring(0,16) != "chrome-extension"){
+              returnTabs.push(tab);
+          }
        });
-       create_advanced_save_button(); 
+       callback(returnTabs);
+    });
+}
+
+function build_current_tabs_list(){ 
+    get_current_tabs(function(allCurrentTabs){
+        if(JSON.parse(localStorage["revolverSettings"]).length>0){
+        compare_saved_and_current_urls(function(urls){
+            for(var i=0;i<urls.length;i++){
+                for(var y=0;y<allCurrentTabs.length;y++){
+                    if(urls[i] === allCurrentTabs[y].url){
+                        generate_advanced_settings_html(allCurrentTabs[y]);
+                    }
+                }
+            } 
+            create_advanced_save_button();
+        });    
+        } else {
+            allCurrentTabs.forEach(function(tab) {
+                generate_advanced_settings_html(tab);
+            });
+            create_advanced_save_button();
+        }
+    });
+}
+
+function compare_saved_and_current_urls(callback){
+    var currentTabsUrls = [],
+        savedTabsUrls = [],
+        urlsToWrite = [];
+        
+    JSON.parse(localStorage["revolverSettings"]).forEach(function(save){
+       savedTabsUrls.push(save.url); 
+    });
+    get_current_tabs(function(allCurrentTabs){
+       for(var i=0;i<allCurrentTabs.length;i++){
+         currentTabsUrls.push(allCurrentTabs[i].url);
+       };
+       for(var i=0;i<currentTabsUrls.length;i++){
+            if(savedTabsUrls.indexOf(currentTabsUrls[i]) == -1){
+                urlsToWrite.push(currentTabsUrls[i]);        
+            }
+       };
+       callback(urlsToWrite);
     });
 }
 
@@ -154,8 +193,8 @@ function create_advanced_save_button(){
         advSaveIndicator = document.createElement("span");
     advSaveButton.setAttribute("id", "adv-save");
     advSaveButton.innerText = "Save";
-    advSaveIndicator.setAttribute("id", "status3");
     advSaveButton.addEventListener("click", save_advanced_options);
+    advSaveIndicator.setAttribute("id", "status3");
     parent.appendChild(advSaveButton);
     parent.appendChild(advSaveIndicator); 
 }
