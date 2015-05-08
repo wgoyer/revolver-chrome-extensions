@@ -1,16 +1,17 @@
 /* global chrome */
 // Global Variables - When possible pulling form Local Storage set via Options page.
-var activeWindows = new Array();
+var activeWindows = [];
+var settings = JSON.parse(localStorage["revolverSettings"]);
 var timeDelay = 10000;
-if (localStorage["seconds"]) { timeDelay = (localStorage["seconds"]*1000);}
-var tabReload = true;
-if (localStorage["reload"]) { 
-	if (localStorage["reload"] == 'true') {
-		tabReload = true;
-	} else {
-		tabReload = false;
-	}
-}
+//if (localStorage["seconds"]) { timeDelay = (localStorage["seconds"]*1000);} --Move to settings object
+//var tabReload = true; Move to revolverSettings
+//if (localStorage["reload"]) { 
+//	if (localStorage["reload"] == 'true') {
+//		tabReload = true;
+//	} else {
+//		tabReload = false;
+//	}
+//}
 var tabInactive = false;
 if (localStorage["inactive"]) { 
 	if (localStorage["inactive"] == 'true') {
@@ -51,7 +52,7 @@ chrome.browserAction.setBadgeBackgroundColor({color: badgeColor});
 
 // Called when the user clicks on the browser action.
 chrome.browserAction.onClicked.addListener(function(tab) {
-	var windowId = tab.windowId
+	var windowId = tab.windowId;
 	if (activeInWindow(windowId)) {
 		stop(windowId);
 	} else {
@@ -82,7 +83,7 @@ function badgeTabs(windowId, text) {
 // Start on a specific window
 function go(windowId) {
 	if (localStorage["seconds"]) { timeDelay = (localStorage["seconds"]*1000);}
-	moverInteval = setInterval(function() { moveTabIfIdle() }, timeDelay);
+	var moverInteval = setInterval(function() { moveTabIfIdle() }, timeDelay);
         console.log('Starting: timeDelay:'+timeDelay+' reload:'+tabReload+' inactive:'+tabInactive);
 	activeWindows.push(windowId);
 	badgeTabs(windowId, 'on');

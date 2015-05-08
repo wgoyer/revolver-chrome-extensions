@@ -14,27 +14,27 @@ function save_options() {
         localStorage["seconds"] = document.getElementById("seconds").value;
         bg.timeDelay = (document.getElementById("seconds").value*1000);
         if (document.getElementById("reload").checked == true) {
-                localStorage["reload"] = 'true';
+                localStorage["revolverSettings"].reload = 'true';
                 bg.tabReload = true;
         } else {
-                localStorage["reload"] = 'false';
+                localStorage["revolverSettings"].reload = 'false';
                 bg.tabReload = false;
         }
         if (document.getElementById("inactive").checked == true) {
-                localStorage["inactive"] = 'true';
+                localStorage["revolverSettings"].inactive = 'true';
                 bg.tabInactive = true;
         } else {
-                localStorage["inactive"] = 'false';
+                localStorage["revolverSettings"].inactive = 'false';
                 bg.tabInactive = false;
         }
 	if (document.getElementById("autostart").checked == true) {
-                localStorage["autostart"] = 'true';
+                localStorage["revolverSettings"].autostart = 'true';
                 bg.tabInactive = true;
         } else {
-                localStorage["autostart"] = 'false';
+                localStorage["revolverSettings"].autostart = 'false';
                 bg.tabInactive = false;
         }
-	localStorage["noRefreshList"] = JSON.stringify(document.getElementById('noRefreshList').value.split('\n'));
+	localStorage["revolverSettings"].noRefreshList = JSON.stringify(document.getElementById('noRefreshList').value.split('\n'));
         bg.noRefreshList = document.getElementById('noRefreshList').value.split('\n');
   // Update status to let user know options were saved.
   var status = document.getElementById("status");
@@ -48,13 +48,14 @@ function save_options() {
 }
 // Restores saved values from localStorage.
 function restore_options() {
-        if (localStorage["seconds"]) {
-                document.getElementById("seconds").value = localStorage["seconds"];
+    var settings = localStorage["revolverSettings"];
+        if (settings.seconds) {
+                document.getElementById("seconds").value = settings.seconds;
         } else {
                 document.getElementById("seconds").value = "10";
         }
-        if (localStorage["reload"]) {
-                if (localStorage["reload"] == 'true') {
+        if (settings.reload) {
+                if (settings.reload == 'true') {
                         document.getElementById("reload").checked = true;
                 } else {
                         document.getElementById("reload").checked = false;
@@ -62,8 +63,8 @@ function restore_options() {
         } else {
                 document.getElementById("reload").checked = true;
         }
-        if (localStorage["inactive"]) {
-                if (localStorage["inactive"] == 'true') {
+        if (settings.inactive) {
+                if (settings.inactive == 'true') {
                         document.getElementById("inactive").checked = true;
                 } else {
                         document.getElementById("inactive").checked = false;
@@ -71,8 +72,8 @@ function restore_options() {
         } else {
                 document.getElementById("inactive").checked = true;
         }
-	if (localStorage["autostart"]) {
-                if (localStorage["autostart"] == 'true') {
+	if (settings.autostart) {
+                if (settings.autostart == 'true') {
                         document.getElementById("autostart").checked = true;
                 } else {
                         document.getElementById("autostart").checked = false;
@@ -80,8 +81,8 @@ function restore_options() {
         } else {
                 document.getElementById("autostart").checked = false;
         }
-        if (localStorage["noRefreshList"]) {
-                document.getElementById("noRefreshList").value = JSON.parse(localStorage["noRefreshList"]).join("\n");
+        if (settings.noRefreshList) {
+                document.getElementById("noRefreshList").value = JSON.parse(settings.noRefreshList).join("\n");
         } else {
                 document.getElementById("noRefreshList").value = "";
         }
