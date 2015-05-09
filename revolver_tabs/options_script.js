@@ -3,39 +3,41 @@ var bg = chrome.extension.getBackgroundPage();
 // Saves options to localStorage.
 function add_event_listeners(){
     restore_options();
-    restore_advanced_options();
+    if (localStorage["revolverAdvSettings"]) restore_advanced_options();
     build_current_tabs_list();
     document.querySelector('#save').addEventListener('click', save_options);
     document.querySelector('#savetop').addEventListener('click', save_options);
 }
 
-//Base options code (TODO:  Change settings to revolverSettings object)
+//Base options code
 function save_options() {
-        localStorage["seconds"] = document.getElementById("seconds").value;
+    var appSettings = {};
+        appSettings.seconds = document.getElementById("seconds").value;
         bg.timeDelay = (document.getElementById("seconds").value*1000);
         if (document.getElementById("reload").checked == true) {
-                localStorage["revolverSettings"].reload = 'true';
+                appSettings.reload = true;
                 bg.tabReload = true;
         } else {
-                localStorage["revolverSettings"].reload = 'false';
+                appSettings.reload = false;
                 bg.tabReload = false;
         }
         if (document.getElementById("inactive").checked == true) {
-                localStorage["revolverSettings"].inactive = 'true';
+                appSettings.inactive = true;
                 bg.tabInactive = true;
         } else {
-                localStorage["revolverSettings"].inactive = 'false';
+                appSettings.inactive = false;
                 bg.tabInactive = false;
         }
 	if (document.getElementById("autostart").checked == true) {
-                localStorage["revolverSettings"].autostart = 'true';
+                appSettings.autostart = true;
                 bg.tabInactive = true;
         } else {
-                localStorage["revolverSettings"].autostart = 'false';
+                appSettings.autostart = false;
                 bg.tabInactive = false;
         }
-	localStorage["revolverSettings"].noRefreshList = JSON.stringify(document.getElementById('noRefreshList').value.split('\n'));
+	appSettings.noRefreshList = document.getElementById('noRefreshList').value.split('\n');
         bg.noRefreshList = document.getElementById('noRefreshList').value.split('\n');
+    
   // Update status to let user know options were saved.
   var status = document.getElementById("status");
   var status2 = document.getElementById("status2");
@@ -45,46 +47,24 @@ function save_options() {
     status.innerHTML = "";
     status2.innerHTML = "";
   }, 1000);
+  
+  localStorage["revolverSettings"] = JSON.stringify(appSettings);
 }
 // Restores saved values from localStorage.
 function restore_options() {
-    var settings = localStorage["revolverSettings"];
-        if (settings.seconds) {
-                document.getElementById("seconds").value = settings.seconds;
+    var appSettings = JSON.parse(localStorage["revolverSettings"]);
+        document.getElementById("seconds").value = (appSettings.seconds || 10);
+        document.getElementById("reload").checked = (appSettings.reload || false);
+        document.getElementById("inactive").checked = (appSettings.inactive || false);
+        document.getElementById("autostart").checked = (appSettings.autostart || false);
+        if(appSettings.noRefreshList && appSettings.noRefreshList.length > 0){
+            for(var i=0;i<appSettings.noRefreshList.length;i++){
+                if(appSettings.noRefreshList[i]!= ""){
+                    document.getElementById("noRefreshList").value += (appSettings.noRefreshList[i]+"\n");    
+                };
+            };
         } else {
-                document.getElementById("seconds").value = "10";
-        }
-        if (settings.reload) {
-                if (settings.reload == 'true') {
-                        document.getElementById("reload").checked = true;
-                } else {
-                        document.getElementById("reload").checked = false;
-                }
-        } else {
-                document.getElementById("reload").checked = true;
-        }
-        if (settings.inactive) {
-                if (settings.inactive == 'true') {
-                        document.getElementById("inactive").checked = true;
-                } else {
-                        document.getElementById("inactive").checked = false;
-                }
-        } else {
-                document.getElementById("inactive").checked = true;
-        }
-	if (settings.autostart) {
-                if (settings.autostart == 'true') {
-                        document.getElementById("autostart").checked = true;
-                } else {
-                        document.getElementById("autostart").checked = false;
-                }
-        } else {
-                document.getElementById("autostart").checked = false;
-        }
-        if (settings.noRefreshList) {
-                document.getElementById("noRefreshList").value = JSON.parse(settings.noRefreshList).join("\n");
-        } else {
-                document.getElementById("noRefreshList").value = "";
+            document.getElementById("noRefreshList").value = "";    
         }
 }
 
@@ -105,11 +85,11 @@ function save_advanced_options(){
                 });               
            }
         }
-        localStorage["revolverSettings"] = JSON.stringify(advUrlObjectArray);
+        localStorage["revolverAdvSettings"] = JSON.stringify(advUrlObjectArray);
 }
 
 function restore_advanced_options(){
-    var settings = JSON.parse(localStorage["revolverSettings"]);
+    var settings = JSON.parse(localStorage["revolverAdvSettings"]);
     if(settings.length>0){
         for(var i=0;i<settings.length;i++){
             generate_advanced_settings_html(settings[i], true);
@@ -147,7 +127,9 @@ function get_current_tabs(callback){
 
 function build_current_tabs_list(){ 
     get_current_tabs(function(allCurrentTabs){
-        if(JSON.parse(localStorage["revolverSettings"]).length>0){
+//        Need to change this so array is in its own attribute.  
+//        ToDo: Wrap advanced settings into regular settings storage, create function to load/save settings so it doesn't overwrite.
+        if(localStorage["revolverAdvSettings"]){
         compare_saved_and_current_urls(function(urls){
             for(var i=0;i<urls.length;i++){
                 for(var y=0;y<allCurrentTabs.length;y++){
@@ -172,7 +154,7 @@ function compare_saved_and_current_urls(callback){
         savedTabsUrls = [],
         urlsToWrite = [];
         
-    JSON.parse(localStorage["revolverSettings"]).forEach(function(save){
+    JSON.parse(localStorage["revolverAdvSettings"]).forEach(function(save){
        savedTabsUrls.push(save.url); 
     });
     get_current_tabs(function(allCurrentTabs){
@@ -200,5 +182,5 @@ function create_advanced_save_button(){
     parent.appendChild(advSaveIndicator); 
 }
 
-// Adding listeners for restoring and saving options
+// Load settings and add listeners:
 document.addEventListener('DOMContentLoaded', add_event_listeners);
