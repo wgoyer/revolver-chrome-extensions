@@ -1,4 +1,5 @@
 /* global chrome */
+//Bug: Multiple tabs with same URL show up duplicate in adv settings.
 var bg = chrome.extension.getBackgroundPage();
 // Saves options to localStorage.
 function add_event_listeners(){

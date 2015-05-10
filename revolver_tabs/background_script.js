@@ -1,53 +1,32 @@
 /* global chrome */
 // Global Variables - When possible pulling form Local Storage set via Options page.
-var activeWindows = [];
-var settings = JSON.parse(localStorage["revolverSettings"]);
-var timeDelay = 10000;
-//if (localStorage["seconds"]) { timeDelay = (localStorage["seconds"]*1000);} --Move to settings object
-//var tabReload = true; Move to revolverSettings
-//if (localStorage["reload"]) { 
-//	if (localStorage["reload"] == 'true') {
-//		tabReload = true;
-//	} else {
-//		tabReload = false;
-//	}
-//}
-var tabInactive = false;
-if (localStorage["inactive"]) { 
-	if (localStorage["inactive"] == 'true') {
-		tabInactive = true;
-	} else {
-		tabInactive = false;
-	}
-}
-var tabAutostart = false;
-if (localStorage["autostart"]) { 
-	if (localStorage["autostart"] == 'true') {
-		tabAutostart = true;
-	} else {
-		tabAutostart = false;
-	}
-}
-var noRefreshList = [];
-if (localStorage["noRefreshList"]) {
-	noRefreshList = JSON.parse(localStorage["noRefreshList"]);
-}
+var activeWindows = [],
+	settings = JSON.parse(localStorage["revolverSettings"]),
+	advSettings = JSON.parse(localStorage["revolverAdvSettings"]),
+	timeDelay = 10000,
+	tabReload = false,
+	tabInactive = false,
+	tabAutostart = false,
+	noRefreshList = [],
+	badgeColor = [139,137,137,137];
+//Base Settings
+if (settings.seconds) timeDelay = settings.seconds*1000;
+if (settings.reload) tabReload = true;
+if (settings.inactive) tabInactive = true; 
+if (settings.autostart) tabAutostart = true; 
+if (settings.noRefreshList) noRefreshList = settings.noRefreshList;
 
-function include(arr,obj) {
-    return (arr.indexOf(obj) != -1);
-}
-
-function activeInWindow(windowId)
-{
-	for(i in activeWindows) {
-		if(activeWindows[i] == windowId) {
-			return true;
+//Autostart function, procesed on initial startup.
+if(tabAutostart) {
+	chrome.tabs.query({'active': true, 'windowId': chrome.windows.WINDOW_ID_CURRENT},
+		function(tabs){
+			//Start Revolver Tabs in main window.
+			go(tabs[0].windowId);
 		}
-	}
+	);
 }
 
 // Setup Initial Badge Text
-var badgeColor = [139,137,137,137];
 chrome.browserAction.setBadgeBackgroundColor({color: badgeColor});
 
 // Called when the user clicks on the browser action.
@@ -60,9 +39,37 @@ chrome.browserAction.onClicked.addListener(function(tab) {
 	}
 });	
 
+function include(arr,obj) {
+    return (arr.indexOf(obj) != -1);
+}
+
+function activeInWindow(windowId){
+	for(var i in activeWindows) {
+		if(activeWindows[i] == windowId) {
+			return true;
+		}
+	}
+}
+
+
+
+function checkAdvancedSettings(callback) {
+	chrome.tabs.query({active: true}, function(tab){
+		for(var i=0;i<advSettings.length;i++){
+			console.log("Comparing:  "+advSettings[i].url+ " || "+tab[0].url);
+			if(advSettings[i].url == tab[0].url) {
+				console.log("Match.");
+				return callback(advSettings[i]);
+				break;
+			}
+		}
+		callback(false);
+	});
+}
+
 function badgeTabs(windowId, text) {
 	chrome.tabs.getAllInWindow(windowId, function(tabs) {
-		for(i in tabs) {
+		for(var i in tabs) {
 			switch (text)
 			{
 			case 'on':
@@ -82,7 +89,7 @@ function badgeTabs(windowId, text) {
 
 // Start on a specific window
 function go(windowId) {
-	if (localStorage["seconds"]) { timeDelay = (localStorage["seconds"]*1000);}
+	if (settings.seconds) { timeDelay = (settings.seconds*1000);}
 	var moverInteval = setInterval(function() { moveTabIfIdle() }, timeDelay);
         console.log('Starting: timeDelay:'+timeDelay+' reload:'+tabReload+' inactive:'+tabInactive);
 	activeWindows.push(windowId);
@@ -100,23 +107,43 @@ function stop(windowId) {
 	}
 }
 
+function activateReloadAndCallback(tab){
+	chrome.tabs.update(tab.id, {url: tab.url, highlighted: tab.highlighted}, null);
+	chrome.tabs.onUpdated.addListener(function activateTabCallback(tabId, info){
+		if(info.status === "completed" && tabId === tab.id) {
+			chrome.tabs.onUpdated.removeListener(activateTabCallback);
+			chrome.tabs.update(tabId, {highlighted: true});
+		}
+	});
+}
+
 // Switch Tab URL functionality.
 function activateTab(tab) {
-	if (tabReload && !include(noRefreshList, tab.url)) {
-		// Trigger a reload
-		chrome.tabs.update(tab.id, {url: tab.url, selected: tab.selected}, null);
-		// Add a callback to swich tabs after the reload is complete
-		chrome.tabs.onUpdated.addListener(
-			function activateTabCallback( tabId , info ) {
-		    	if ( info.status == "complete" && tabId == tab.id) {
-					chrome.tabs.onUpdated.removeListener(activateTabCallback);
-		        	chrome.tabs.update(tabId, {selected: true});
-		    	}
-			});
-	} else {
-		// Swich Tab right away
-		chrome.tabs.update(tab.id, {selected: true});
-	}
+	checkAdvancedSettings(function(tabSetting){
+		if(tabSetting){
+			if(tabSetting.reload){
+				activateReloadAndCallback(tab);
+//				chrome.tabs.update(tab.id, {url: tab.url, selected: tab.selected}, null);
+			}
+		} else {
+			if (tabReload && !include(noRefreshList, tab.url)) {
+				activateReloadAndCallback(tab);
+				// Trigger a reload
+//				chrome.tabs.update(tab.id, {url: tab.url, selected: tab.selected}, null);
+//				// Add a callback to swich tabs after the reload is complete
+//				chrome.tabs.onUpdated.addListener(
+//				function activateTabCallback( tabId , info ) {
+//		    		if ( info.status == "complete" && tabId == tab.id) {
+//						chrome.tabs.onUpdated.removeListener(activateTabCallback);
+//		        		chrome.tabs.update(tabId, {selected: true});
+//		    		}
+//				});
+			} else {
+				// Swich Tab right away
+				chrome.tabs.update(tab.id, {selected: true});
+			}	
+		}
+	});
 }
 
 // Call moveTab if the user isn't actually interacting with the browser
@@ -154,13 +181,4 @@ function moveTab() {
 			});
 		});
 	}
-}
-//Autostart function, procesed on initial startup.
-if(tabAutostart) {
-	chrome.tabs.query({'active': true, 'windowId': chrome.windows.WINDOW_ID_CURRENT},
-		function(tabs){
-			//Start Revolver Tabs in main window.
-			go(tabs[0].windowId);
-		}
-	);
 }
