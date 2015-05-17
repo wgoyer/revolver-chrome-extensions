@@ -1,6 +1,7 @@
 /* global chrome */
 // Global Variables - When possible pulling form Local Storage set via Options page.
 var activeWindows = [],
+	tabsManifest = [],
 	settings = JSON.parse(localStorage["revolverSettings"]),
 	advSettings = JSON.parse(localStorage["revolverAdvSettings"]),
 	timeDelay = 10000,
@@ -8,7 +9,9 @@ var activeWindows = [],
 	tabInactive = false,
 	tabAutostart = false,
 	noRefreshList = [],
-	badgeColor = [139,137,137,137];
+	windowId,
+	moverInterval,
+	badgeColor = [139,137,137,137]; //Grey - inactive.
 //Base Settings
 if (settings.seconds) timeDelay = settings.seconds*1000;
 if (settings.reload) tabReload = true;
@@ -20,18 +23,16 @@ if (settings.noRefreshList) noRefreshList = settings.noRefreshList;
 if(tabAutostart) {
 	chrome.tabs.query({'active': true, 'windowId': chrome.windows.WINDOW_ID_CURRENT},
 		function(tabs){
+			createTabsManifest();
 			//Start Revolver Tabs in main window.
 			go(tabs[0].windowId);
 		}
 	);
 }
 
-// Setup Initial Badge Text
-chrome.browserAction.setBadgeBackgroundColor({color: badgeColor});
-
 // Called when the user clicks on the browser action.
 chrome.browserAction.onClicked.addListener(function(tab) {
-	var windowId = tab.windowId;
+	windowId = tab.windowId;
 	if (activeInWindow(windowId)) {
 		stop(windowId);
 	} else {
@@ -51,8 +52,6 @@ function activeInWindow(windowId){
 	}
 }
 
-
-
 function checkAdvancedSettings(callback) {
 	chrome.tabs.query({active: true}, function(tab){
 		for(var i=0;i<advSettings.length;i++){
@@ -67,43 +66,64 @@ function checkAdvancedSettings(callback) {
 	});
 }
 
-function badgeTabs(windowId, text) {
-	chrome.tabs.getAllInWindow(windowId, function(tabs) {
-		for(var i in tabs) {
-			switch (text)
-			{
-			case 'on':
-			  chrome.browserAction.setBadgeText({text:"\u2022"});
-			  chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100]});
-			  break;
-			case '':
-			  chrome.browserAction.setBadgeText({text:"\u00D7"});
-			  chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]});
-			  break;
-			default:
-			  chrome.browserAction.setBadgeText({text:""});
+function assignAdvancedSettings(tabs, callback) {
+	for(var y=0;y<tabs.length;y++){
+		for(var i=0;i<advSettings.length;i++){
+			console.log("Comparing:  "+advSettings[i].url+ " || "+tabs[y].url);
+			if(advSettings[i].url == tabs[y].url) {
+				console.log("Match.");
+				tabs[y].reload = advSettings[i].reload;
+				tabs[y].seconds = advSettings[i].seconds;
 			}
 		}	
-	});
+	}
+	return callback(false);
+}
+
+function assignBaseSettings(tabs, callback) {
+	for(var i = 0;i<tabs.length;i++){
+		tabs[i].reload = (tabs[i].reload || settings.reload);
+		tabs[i].seconds = (tabs[i].seconds || settings.seconds);	
+	};
+	return callback;
+}
+
+function badgeTabs(text) {
+	switch (text)
+	{
+	case 'on':
+	// - Unicode character:  Dot - looks like play button. Color is green.
+	  chrome.browserAction.setBadgeText({text:"\u2022"}); 
+	  chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100]});
+	  break;
+	case '':
+	// - Unicode character:  X - looks like stop button.  Color is red.
+	  chrome.browserAction.setBadgeText({text:"\u00D7"}); 
+	  chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]});
+	  break;
+	default:
+	// - Removes the unicode character, I don't understand the point of the default action here.
+	  chrome.browserAction.setBadgeText({text:""});
+	}
 }
 
 // Start on a specific window
 function go(windowId) {
 	if (settings.seconds) { timeDelay = (settings.seconds*1000);}
-	var moverInteval = setInterval(function() { moveTabIfIdle() }, timeDelay);
+	moverInterval = setInterval(function() { moveTabIfIdle(); }, timeDelay);
         console.log('Starting: timeDelay:'+timeDelay+' reload:'+tabReload+' inactive:'+tabInactive);
 	activeWindows.push(windowId);
-	badgeTabs(windowId, 'on');
+	badgeTabs('on');
 }
 
 // Stop on a specific window
 function stop(windowId) {
-	clearInterval(moverInteval);
+	clearInterval(moverInterval);
         console.log('Stopped.');
 	var index = activeWindows.indexOf(windowId);
 	if(index >= 0) {
 		activeWindows.splice(index);
-		badgeTabs(windowId, '');
+		badgeTabs('');
 	}
 }
 
@@ -123,21 +143,10 @@ function activateTab(tab) {
 		if(tabSetting){
 			if(tabSetting.reload){
 				activateReloadAndCallback(tab);
-//				chrome.tabs.update(tab.id, {url: tab.url, selected: tab.selected}, null);
 			}
 		} else {
 			if (tabReload && !include(noRefreshList, tab.url)) {
 				activateReloadAndCallback(tab);
-				// Trigger a reload
-//				chrome.tabs.update(tab.id, {url: tab.url, selected: tab.selected}, null);
-//				// Add a callback to swich tabs after the reload is complete
-//				chrome.tabs.onUpdated.addListener(
-//				function activateTabCallback( tabId , info ) {
-//		    		if ( info.status == "complete" && tabId == tab.id) {
-//						chrome.tabs.onUpdated.removeListener(activateTabCallback);
-//		        		chrome.tabs.update(tabId, {selected: true});
-//		    		}
-//				});
 			} else {
 				// Swich Tab right away
 				chrome.tabs.update(tab.id, {selected: true});
@@ -155,9 +164,9 @@ function moveTabIfIdle() {
 			if(state == 'idle') {
 				moveTab();
 			} else {
-				//Set "wait" color and log.
-				chrome.browserAction.setBadgeText({text:"\u2022"});
-				chrome.browserAction.setBadgeBackgroundColor({color:[0,0,255,100]});
+				//Change text to pause button and color to yellow.
+				chrome.browserAction.setBadgeText({text:"\u23F8"});
+				chrome.browserAction.setBadgeBackgroundColor({color:[255,245,102,100]});
 				console.log('Browser was active, waiting.');
 			}
 		});
@@ -168,17 +177,39 @@ function moveTabIfIdle() {
 
 // Switches to next URL in manifest, re-requests feed if at end of manifest.
 function moveTab() {
-	for(i in activeWindows) {
+	for(var i in activeWindows) {
 		windowId = activeWindows[i];
-		badgeTabs(windowId, 'on');
-		chrome.tabs.getSelected(windowId, function(currentTab){
-			chrome.tabs.getAllInWindow(currentTab.windowId, function(tabs) {
-				nextTabIndex = 0;
-				if(currentTab.index + 1 < tabs.length) {
-					nextTabIndex = currentTab.index + 1;
-				}
-				activateTab(tabs[nextTabIndex]);
-			});
-		});
+		badgeTabs('on');
+		//ToDo:  Let's move this to its own function so it's not declared inside the loop.
+		checkManifestIndex();
 	}
+}
+
+function checkManifestIndex() {
+	var nextTabIndex = 0;
+	chrome.tabs.getSelected(windowId, function(currentTab){
+		chrome.tabs.getAllInWindow(currentTab.windowId, function(tabs) {
+			if(currentTab.index + 1 < tabs.length) {
+				nextTabIndex = currentTab.index + 1;
+			} else {
+				nextTabIndex = 0;
+			}
+			activateTab(tabs[nextTabIndex]);
+		});
+	});
+}
+
+function createTabsManifest(){
+	chrome.tabs.query({}, function(tabs){
+		tabsManifest = tabs;
+		assignSettingsToTabs(tabs);
+	});
+}
+
+function assignSettingsToTabs(tabs){
+	assignAdvancedSettings(tabs, function(){
+		assignBaseSettings(tabs, function(){
+			return;
+		});	
+	});
 }
