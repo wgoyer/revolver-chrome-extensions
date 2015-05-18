@@ -1,5 +1,5 @@
 /* global chrome */
-// Global Variables - When possible pulling form Local Storage set via Options page.
+// Global Variables - When possible pulling from Local Storage set via Options page.
 var activeWindows = [],
 	tabsManifest = [],
 	settings = JSON.parse(localStorage["revolverSettings"]),
@@ -11,35 +11,36 @@ var activeWindows = [],
 	windowId,
 	moverTimeOut;
 
-//probably a better way to default this.
-badgeTabs('');
-
-//Base Settings
-if (settings.reload) tabReload = true;
-if (settings.inactive) tabInactive = true; 
-if (settings.autostart) tabAutostart = true; 
-if (settings.noRefreshList) noRefreshList = settings.noRefreshList;
+initSettings();
 
 //Autostart function, procesed on initial startup.
 if(tabAutostart) {
 	chrome.tabs.query({'active': true}, function(tabs){
-			createTabsManifest(tabs[0].windowId);
-			//Start Revolver Tabs in main window.
-			go(tabs[0].windowId);
-		}
-	);
+		createTabsManifest(tabs[0].windowId, function(){
+			go(tabs[0].windowId);	
+		});
+	});
 }
 
 // Called when the user clicks on the browser action.
 chrome.browserAction.onClicked.addListener(function(tab) {
 	windowId = tab.windowId;
-	createTabsManifest(windowId);
-	if (activeInWindow(windowId)) {
-		stop(windowId);
-	} else {
-		go(windowId);
-	}
+	createTabsManifest(windowId, function(){
+		if (activeInWindow(windowId)) {
+			stop(windowId);
+		} else {
+			go(windowId);
+		}	
+	});
 });	
+
+function initSettings(){
+	badgeTabs();
+	if (settings.reload) tabReload = true;
+	if (settings.inactive) tabInactive = true; 
+	if (settings.autostart) tabAutostart = true; 
+	if (settings.noRefreshList) noRefreshList = settings.noRefreshList;		
+}
 
 function include(arr,obj) {
     return (arr.indexOf(obj) != -1);
@@ -56,7 +57,7 @@ function activeInWindow(windowId){
 function grabTabSettings(tab, callback) {
 	for(var i=0; i<tabsManifest.length; i++){
 		if(tabsManifest[i].url === tab.url){
-			return callback(tabsManifest[i]);
+			callback(tabsManifest[i]);
 		}
 	}
 }
@@ -70,7 +71,7 @@ function assignAdvancedSettings(tabs, callback) {
 			}
 		}	
 	}
-	return callback(false);
+	callback();
 }
 
 function assignBaseSettings(tabs, callback) {
@@ -78,7 +79,7 @@ function assignBaseSettings(tabs, callback) {
 		tabs[i].reload = (tabs[i].reload || settings.reload);
 		tabs[i].seconds = (tabs[i].seconds || settings.seconds);	
 	};
-	return callback;
+	callback();
 }
 
 //Change this to an if statement, default is red x.
@@ -100,7 +101,6 @@ function badgeTabs(text) {
 function go(windowId) {
 	chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
 		grabTabSettings(tab[0], function(tabSetting){
-			console.log("setMoverTimeout 108");
 			setMoverTimeout(tabSetting.seconds);
 			activeWindows.push(windowId);
 			badgeTabs('on');
@@ -125,13 +125,11 @@ function activateTab(nextTab) {
 		if(tabSetting.reload && !include(noRefreshList, nextTab.url)){
 			chrome.tabs.update(nextTab.id, {selected: true}, function(){
 				chrome.tabs.reload(nextTab.id);
-				console.log("setMoverTimeout 132");
 				setMoverTimeout(tabSetting.seconds);
 			});
 		} else {
-			// Swich Tab right away
+			// Switch Tab right away
 			chrome.tabs.update(nextTab.id, {selected: true});
-			console.log("setMoverTimeout 137");
 			setMoverTimeout(tabSetting.seconds);
 		}	
 	});
@@ -148,12 +146,7 @@ function moveTabIfIdle(tabTimeout) {
 			} else {
 				//Change text to play button and color to yellow.
 				badgeTabs("pause");
-				console.log('Browser was active, waiting.');
-				if(tabTimeout) {
-					return setMoverTimeout(tabTimeout);	
-				} else {
-					console.log("There was no tabTimeout assigned at line 160: "+tabTimeout);
-				}
+				return setMoverTimeout(tabTimeout);	
 			}
 		});
 	} else {
@@ -184,24 +177,25 @@ function checkManifestIndex() {
 	});
 }
 
-function createTabsManifest(windowId){
+function createTabsManifest(windowId, callback){
 	chrome.tabs.query({"windowId" : windowId}, function(tabs){
 		tabsManifest = tabs;
-		assignSettingsToTabs(tabs);
+		assignSettingsToTabs(tabs, function(){
+			callback();
+		});
 	});
 }
 
-function assignSettingsToTabs(tabs){
+function assignSettingsToTabs(tabs, callback){
 	assignAdvancedSettings(tabs, function(){
 		assignBaseSettings(tabs, function(){
-			return;
+			callback();
 		});	
 	});
 }
 
 function setMoverTimeout(seconds){
 	var timeDelay = (parseInt(seconds)*1000);
-	console.log('Starting: timeDelay:'+timeDelay+' reload:'+tabReload+' inactive:'+tabInactive);
 	moverTimeOut = setTimeout(function() {
 		console.log("timeout triggered.");
 		moveTabIfIdle(seconds); 
