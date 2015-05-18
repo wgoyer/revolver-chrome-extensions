@@ -4,16 +4,17 @@ var activeWindows = [],
 	tabsManifest = [],
 	settings = JSON.parse(localStorage["revolverSettings"]),
 	advSettings = JSON.parse(localStorage["revolverAdvSettings"]),
-	timeDelay = 10000,
 	tabReload = false,
 	tabInactive = false,
 	tabAutostart = false,
 	noRefreshList = [],
 	windowId,
-	moverInterval,
-	badgeColor = [139,137,137,137]; //Grey - inactive.
+	moverTimeOut;
+
+//probably a better way to default this.
+badgeTabs('');
+
 //Base Settings
-if (settings.seconds) timeDelay = settings.seconds*1000;
 if (settings.reload) tabReload = true;
 if (settings.inactive) tabInactive = true; 
 if (settings.autostart) tabAutostart = true; 
@@ -21,9 +22,8 @@ if (settings.noRefreshList) noRefreshList = settings.noRefreshList;
 
 //Autostart function, procesed on initial startup.
 if(tabAutostart) {
-	chrome.tabs.query({'active': true, 'windowId': chrome.windows.WINDOW_ID_CURRENT},
-		function(tabs){
-			createTabsManifest();
+	chrome.tabs.query({'active': true}, function(tabs){
+			createTabsManifest(tabs[0].windowId);
 			//Start Revolver Tabs in main window.
 			go(tabs[0].windowId);
 		}
@@ -33,6 +33,7 @@ if(tabAutostart) {
 // Called when the user clicks on the browser action.
 chrome.browserAction.onClicked.addListener(function(tab) {
 	windowId = tab.windowId;
+	createTabsManifest(windowId);
 	if (activeInWindow(windowId)) {
 		stop(windowId);
 	} else {
@@ -52,26 +53,18 @@ function activeInWindow(windowId){
 	}
 }
 
-function checkAdvancedSettings(callback) {
-	chrome.tabs.query({active: true}, function(tab){
-		for(var i=0;i<advSettings.length;i++){
-			console.log("Comparing:  "+advSettings[i].url+ " || "+tab[0].url);
-			if(advSettings[i].url == tab[0].url) {
-				console.log("Match.");
-				return callback(advSettings[i]);
-				break;
-			}
+function grabTabSettings(tab, callback) {
+	for(var i=0; i<tabsManifest.length; i++){
+		if(tabsManifest[i].url === tab.url){
+			return callback(tabsManifest[i]);
 		}
-		callback(false);
-	});
+	}
 }
 
 function assignAdvancedSettings(tabs, callback) {
 	for(var y=0;y<tabs.length;y++){
 		for(var i=0;i<advSettings.length;i++){
-			console.log("Comparing:  "+advSettings[i].url+ " || "+tabs[y].url);
 			if(advSettings[i].url == tabs[y].url) {
-				console.log("Match.");
 				tabs[y].reload = advSettings[i].reload;
 				tabs[y].seconds = advSettings[i].seconds;
 			}
@@ -88,37 +81,36 @@ function assignBaseSettings(tabs, callback) {
 	return callback;
 }
 
+//Change this to an if statement, default is red x.
 function badgeTabs(text) {
-	switch (text)
-	{
-	case 'on':
-	// - Unicode character:  Dot - looks like play button. Color is green.
-	  chrome.browserAction.setBadgeText({text:"\u2022"}); 
-	  chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100]});
-	  break;
-	case '':
-	// - Unicode character:  X - looks like stop button.  Color is red.
-	  chrome.browserAction.setBadgeText({text:"\u00D7"}); 
-	  chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]});
-	  break;
-	default:
-	// - Removes the unicode character, I don't understand the point of the default action here.
-	  chrome.browserAction.setBadgeText({text:""});
+	if(text === "on") {
+		chrome.browserAction.setBadgeText({text:"\u2022"}); 
+	  	chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100]});
+	} else 
+	if (text === "pause"){
+		chrome.browserAction.setBadgeText({text:"\u2022"});
+		chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100]});
+	} else {
+		chrome.browserAction.setBadgeText({text:"\u00D7"}); 
+	 	chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]});
 	}
 }
 
 // Start on a specific window
 function go(windowId) {
-	if (settings.seconds) { timeDelay = (settings.seconds*1000);}
-	moverInterval = setInterval(function() { moveTabIfIdle(); }, timeDelay);
-        console.log('Starting: timeDelay:'+timeDelay+' reload:'+tabReload+' inactive:'+tabInactive);
-	activeWindows.push(windowId);
-	badgeTabs('on');
+	chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
+		grabTabSettings(tab[0], function(tabSetting){
+			console.log("setMoverTimeout 108");
+			setMoverTimeout(tabSetting.seconds);
+			activeWindows.push(windowId);
+			badgeTabs('on');
+		});	
+	});
 }
 
 // Stop on a specific window
 function stop(windowId) {
-	clearInterval(moverInterval);
+	clearTimeout(moverTimeOut);
         console.log('Stopped.');
 	var index = activeWindows.indexOf(windowId);
 	if(index >= 0) {
@@ -127,47 +119,41 @@ function stop(windowId) {
 	}
 }
 
-function activateReloadAndCallback(tab){
-	chrome.tabs.update(tab.id, {url: tab.url, highlighted: tab.highlighted}, null);
-	chrome.tabs.onUpdated.addListener(function activateTabCallback(tabId, info){
-		if(info.status === "completed" && tabId === tab.id) {
-			chrome.tabs.onUpdated.removeListener(activateTabCallback);
-			chrome.tabs.update(tabId, {highlighted: true});
-		}
-	});
-}
-
 // Switch Tab URL functionality.
-function activateTab(tab) {
-	checkAdvancedSettings(function(tabSetting){
-		if(tabSetting){
-			if(tabSetting.reload){
-				activateReloadAndCallback(tab);
-			}
+function activateTab(nextTab) {
+	grabTabSettings(nextTab, function(tabSetting){
+		if(tabSetting.reload && !include(noRefreshList, nextTab.url)){
+			chrome.tabs.update(nextTab.id, {selected: true}, function(){
+				chrome.tabs.reload(nextTab.id);
+				console.log("setMoverTimeout 132");
+				setMoverTimeout(tabSetting.seconds);
+			});
 		} else {
-			if (tabReload && !include(noRefreshList, tab.url)) {
-				activateReloadAndCallback(tab);
-			} else {
-				// Swich Tab right away
-				chrome.tabs.update(tab.id, {selected: true});
-			}	
-		}
+			// Swich Tab right away
+			chrome.tabs.update(nextTab.id, {selected: true});
+			console.log("setMoverTimeout 137");
+			setMoverTimeout(tabSetting.seconds);
+		}	
 	});
 }
 
 // Call moveTab if the user isn't actually interacting with the browser
-function moveTabIfIdle() {
+function moveTabIfIdle(tabTimeout) {
+	clearTimeout(moverTimeOut);
 	if (tabInactive) {
 		// 15 is the lowest allowable number of seconds for this call
-		// If you try lower, Chrome complains
 		chrome.idle.queryState(15, function(state) {
 			if(state == 'idle') {
-				moveTab();
+				return moveTab();
 			} else {
-				//Change text to pause button and color to yellow.
-				chrome.browserAction.setBadgeText({text:"\u23F8"});
-				chrome.browserAction.setBadgeBackgroundColor({color:[255,245,102,100]});
+				//Change text to play button and color to yellow.
+				badgeTabs("pause");
 				console.log('Browser was active, waiting.');
+				if(tabTimeout) {
+					return setMoverTimeout(tabTimeout);	
+				} else {
+					console.log("There was no tabTimeout assigned at line 160: "+tabTimeout);
+				}
 			}
 		});
 	} else {
@@ -180,7 +166,6 @@ function moveTab() {
 	for(var i in activeWindows) {
 		windowId = activeWindows[i];
 		badgeTabs('on');
-		//ToDo:  Let's move this to its own function so it's not declared inside the loop.
 		checkManifestIndex();
 	}
 }
@@ -199,8 +184,8 @@ function checkManifestIndex() {
 	});
 }
 
-function createTabsManifest(){
-	chrome.tabs.query({}, function(tabs){
+function createTabsManifest(windowId){
+	chrome.tabs.query({"windowId" : windowId}, function(tabs){
 		tabsManifest = tabs;
 		assignSettingsToTabs(tabs);
 	});
@@ -212,4 +197,13 @@ function assignSettingsToTabs(tabs){
 			return;
 		});	
 	});
+}
+
+function setMoverTimeout(seconds){
+	var timeDelay = (parseInt(seconds)*1000);
+	console.log('Starting: timeDelay:'+timeDelay+' reload:'+tabReload+' inactive:'+tabInactive);
+	moverTimeOut = setTimeout(function() {
+		console.log("timeout triggered.");
+		moveTabIfIdle(seconds); 
+	}, timeDelay);
 }
