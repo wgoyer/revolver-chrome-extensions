@@ -12,45 +12,34 @@ function add_event_listeners(){
 
 //Base options code
 function save_options() {
-    var appSettings = {};
-        appSettings.seconds = document.getElementById("seconds").value;
-        bg.timeDelay = (document.getElementById("seconds").value*1000);
-        if (document.getElementById("reload").checked == true) {
-                appSettings.reload = true;
-                bg.tabReload = true;
-        } else {
-                appSettings.reload = false;
-                bg.tabReload = false;
-        }
-        if (document.getElementById("inactive").checked == true) {
-                appSettings.inactive = true;
-                bg.tabInactive = true;
-        } else {
-                appSettings.inactive = false;
-                bg.tabInactive = false;
-        }
-	if (document.getElementById("autostart").checked == true) {
-                appSettings.autostart = true;
-                bg.tabInactive = true;
-        } else {
-                appSettings.autostart = false;
-                bg.tabInactive = false;
-        }
-	appSettings.noRefreshList = document.getElementById('noRefreshList').value.split('\n');
-        bg.noRefreshList = document.getElementById('noRefreshList').value.split('\n');
-    
-  // Update status to let user know options were saved.
-  var status = document.getElementById("status");
-  var status2 = document.getElementById("status2");
-  status.innerHTML = "OPTIONS SAVED";
-  status2.innerHTML = "OPTIONS SAVED";
-  setTimeout(function() {
-    status.innerHTML = "";
-    status2.innerHTML = "";
+    var appSettings = {},
+        status = document.getElementById("status"),
+        status2 = document.getElementById("status2");
+    appSettings.seconds = document.getElementById("seconds").value;
+    bg.timeDelay = (document.getElementById("seconds").value*1000);
+    getCheckedStatus(appSettings, "reload");
+    getCheckedStatus(appSettings, "inactive");
+    getCheckedStatus(appSettings, "autostart");
+    appSettings.noRefreshList = document.getElementById('noRefreshList').value.split('\n');
+    bg.noRefreshList = document.getElementById('noRefreshList').value.split('\n');  
+    status.innerHTML = "OPTIONS SAVED";
+    status2.innerHTML = "OPTIONS SAVED";
+    setTimeout(function() {
+        status.innerHTML = "";
+        status2.innerHTML = "";
   }, 1000);
-  
   localStorage["revolverSettings"] = JSON.stringify(appSettings);
 }
+
+function getCheckedStatus(appSettings, elementId){
+    if(document.getElementById(elementId).checked){
+        appSettings[elementId] = true;
+    } else {
+        appSettings[elementId] = false;
+    }
+    bg[elementId] = appSettings[elementId];
+}
+
 // Restores saved values from localStorage.
 function restore_options() {
     var appSettings = JSON.parse(localStorage["revolverSettings"]);
@@ -116,7 +105,7 @@ function generate_advanced_settings_html(tab, saved){
 
 function get_current_tabs(callback){
     var returnTabs=[];
-    chrome.tabs.query({}, function(tabs){
+    chrome.tabs.query({"windowId":chrome.windows.WINDOW_ID_CURRENT}, function(tabs){
        tabs.forEach(function(tab){
           if(tab.url.substring(0,16) != "chrome-extension"){
               returnTabs.push(tab);

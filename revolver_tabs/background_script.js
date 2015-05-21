@@ -13,53 +13,39 @@ var activeWindows = [],
 
 initSettings();
 
-//Autostart function, procesed on initial startup.
-if(tabAutostart) {
-	chrome.tabs.query({'active': true}, function(tabs){
-		createTabsManifest(tabs[0].windowId, function(){
-			go(tabs[0].windowId);	
-		});
-	});
-}
-
-// Called when the user clicks on the browser action.
-chrome.browserAction.onClicked.addListener(function(tab) {
-	windowId = tab.windowId;
-	createTabsManifest(windowId, function(){
-		if (activeInWindow(windowId)) {
-			stop(windowId);
-		} else {
-			go(windowId);
-		}	
-	});
-});	
-
 function initSettings(){
 	badgeTabs();
 	if (settings.reload) tabReload = true;
 	if (settings.inactive) tabInactive = true; 
 	if (settings.autostart) tabAutostart = true; 
-	if (settings.noRefreshList) noRefreshList = settings.noRefreshList;		
+	if (settings.noRefreshList) noRefreshList = settings.noRefreshList;
+	// Check autostart and run.
+	if(tabAutostart) {
+		chrome.tabs.query({'active': true}, function(tabs){
+			createTabsManifest(tabs[0].windowId, function(){
+				go(tabs[0].windowId);	
+			});
+		});
+	};
+	//Event handler for starting/stopping Revolver tabs.
+	chrome.browserAction.onClicked.addListener(function(tab) {
+		windowId = tab.windowId;
+		createTabsManifest(windowId, function(){
+			if (activeInWindow(windowId)) {
+				stop(windowId);
+			} else {
+				go(windowId);
+			}	
+		});
+	});
 }
 
-function include(arr,obj) {
-    return (arr.indexOf(obj) != -1);
-}
-
-function activeInWindow(windowId){
-	for(var i in activeWindows) {
-		if(activeWindows[i] == windowId) {
-			return true;
-		}
-	}
-}
-
-function grabTabSettings(tab, callback) {
-	for(var i=0; i<tabsManifest.length; i++){
-		if(tabsManifest[i].url === tab.url){
-			callback(tabsManifest[i]);
-		}
-	}
+function assignBaseSettings(tabs, callback) {
+	for(var i = 0;i<tabs.length;i++){
+		tabs[i].reload = (tabs[i].reload || settings.reload);
+		tabs[i].seconds = (tabs[i].seconds || settings.seconds);	
+	};
+	callback();
 }
 
 function assignAdvancedSettings(tabs, callback) {
@@ -74,30 +60,43 @@ function assignAdvancedSettings(tabs, callback) {
 	callback();
 }
 
-function assignBaseSettings(tabs, callback) {
-	for(var i = 0;i<tabs.length;i++){
-		tabs[i].reload = (tabs[i].reload || settings.reload);
-		tabs[i].seconds = (tabs[i].seconds || settings.seconds);	
-	};
-	callback();
-}
-
-//Change this to an if statement, default is red x.
-function badgeTabs(text) {
-	if(text === "on") {
-		chrome.browserAction.setBadgeText({text:"\u2022"}); 
-	  	chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100]});
-	} else 
-	if (text === "pause"){
-		chrome.browserAction.setBadgeText({text:"\u2022"});
-		chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100]});
-	} else {
-		chrome.browserAction.setBadgeText({text:"\u00D7"}); 
-	 	chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]});
+function grabTabSettings(tab, callback) {
+	for(var i=0; i<tabsManifest.length; i++){
+		if(tabsManifest[i].url === tab.url){
+			callback(tabsManifest[i]);
+		}
 	}
 }
 
-// Start on a specific window
+//Change the badge icon/background color.  
+function badgeTabs(text) {
+	if(text === "on") {
+		chrome.browserAction.setBadgeText({text:"\u2022"}); //Play button
+	  	chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100]}); //Green
+	} else 
+	if (text === "pause"){
+		chrome.browserAction.setBadgeText({text:"\u2022"}); //Play button
+		chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100]}); //Yellow
+	} else {
+		chrome.browserAction.setBadgeText({text:"\u00D7"}); //Letter X
+	 	chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]}); //Red
+	}
+}
+
+//Helper method.  Checks if a string exists in an array.
+function include(arr,url) {
+    return (arr.indexOf(url) != -1);
+}
+
+function activeInWindow(windowId){
+	for(var i in activeWindows) {
+		if(activeWindows[i] == windowId) {
+			return true;
+		}
+	}
+}
+
+// Start revolving the tabs
 function go(windowId) {
 	chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
 		grabTabSettings(tab[0], function(tabSetting){
@@ -108,7 +107,7 @@ function go(windowId) {
 	});
 }
 
-// Stop on a specific window
+// Stop revolving the tabs
 function stop(windowId) {
 	clearTimeout(moverTimeOut);
         console.log('Stopped.');
@@ -119,7 +118,7 @@ function stop(windowId) {
 	}
 }
 
-// Switch Tab URL functionality.
+// Switch to the next tab.
 function activateTab(nextTab) {
 	grabTabSettings(nextTab, function(tabSetting){
 		if(tabSetting.reload && !include(noRefreshList, nextTab.url)){
@@ -135,7 +134,7 @@ function activateTab(nextTab) {
 	});
 }
 
-// Call moveTab if the user isn't actually interacting with the browser
+// Call moveTab if the user isn't interacting with the browser
 function moveTabIfIdle(tabTimeout) {
 	clearTimeout(moverTimeOut);
 	if (tabInactive) {
@@ -144,7 +143,6 @@ function moveTabIfIdle(tabTimeout) {
 			if(state == 'idle') {
 				return moveTab();
 			} else {
-				//Change text to play button and color to yellow.
 				badgeTabs("pause");
 				return setMoverTimeout(tabTimeout);	
 			}
@@ -154,16 +152,25 @@ function moveTabIfIdle(tabTimeout) {
 	}
 }
 
-// Switches to next URL in manifest, re-requests feed if at end of manifest.
+// Switches to next tab in the index, re-requests feed if at end of the index.
 function moveTab() {
 	for(var i in activeWindows) {
 		windowId = activeWindows[i];
 		badgeTabs('on');
-		checkManifestIndex();
+		setNextTabIndex();
 	}
 }
 
-function checkManifestIndex() {
+function createTabsManifest(windowId, callback){
+	chrome.tabs.query({"windowId" : windowId}, function(tabs){
+		tabsManifest = tabs;
+		assignSettingsToTabs(tabs, function(){
+			callback();
+		});
+	});
+}
+
+function setNextTabIndex() {
 	var nextTabIndex = 0;
 	chrome.tabs.getSelected(windowId, function(currentTab){
 		chrome.tabs.getAllInWindow(currentTab.windowId, function(tabs) {
@@ -173,15 +180,6 @@ function checkManifestIndex() {
 				nextTabIndex = 0;
 			}
 			activateTab(tabs[nextTabIndex]);
-		});
-	});
-}
-
-function createTabsManifest(windowId, callback){
-	chrome.tabs.query({"windowId" : windowId}, function(tabs){
-		tabsManifest = tabs;
-		assignSettingsToTabs(tabs, function(){
-			callback();
 		});
 	});
 }
