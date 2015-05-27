@@ -2,8 +2,8 @@
 // Global Variables - When possible pulling from Local Storage set via Options page.
 var activeWindows = [],
 	tabsManifest = [],
-	settings = JSON.parse(localStorage["revolverSettings"]),
-	advSettings = JSON.parse(localStorage["revolverAdvSettings"]),
+	settings = {},
+	advSettings = {},
 	tabReload = false,
 	tabInactive = false,
 	tabAutostart = false,
@@ -13,13 +13,28 @@ var activeWindows = [],
 
 initSettings();
 
+// Check if the objects exist in local storage. 
+function createBaseSettingsIfTheyDontExist(){
+	if(!localStorage["revolverSettings"]){
+		settings.seconds = 15;
+		settings.reload = tabReload;
+		settings.inactive = tabInactive;
+		settings.autoStart = tabAutostart;
+		localStorage["revolverSettings"] = JSON.stringify(settings);
+	};
+	return true;	
+}
+
 function initSettings(){
 	badgeTabs();
+	// If objects don't exist in local storage, create them.
+	createBaseSettingsIfTheyDontExist();
+//	if (!checkIfSettingsExist("revolverAdvSettings")) 
 	if (settings.reload) tabReload = true;
 	if (settings.inactive) tabInactive = true; 
 	if (settings.autostart) tabAutostart = true; 
 	if (settings.noRefreshList) noRefreshList = settings.noRefreshList;
-	// Check autostart and run.
+	// Check autostart flag and run.
 	if(tabAutostart) {
 		chrome.tabs.query({'active': true}, function(tabs){
 			createTabsManifest(tabs[0].windowId, function(){
@@ -27,7 +42,7 @@ function initSettings(){
 			});
 		});
 	};
-	//Event handler for starting/stopping Revolver tabs.
+	//Event handler for starting/stopping Revolver tabs when clicked.
 	chrome.browserAction.onClicked.addListener(function(tab) {
 		windowId = tab.windowId;
 		createTabsManifest(windowId, function(){
