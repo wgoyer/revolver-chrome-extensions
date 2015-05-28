@@ -21,6 +21,8 @@ function createBaseSettingsIfTheyDontExist(){
 		settings.inactive = tabInactive;
 		settings.autoStart = tabAutostart;
 		localStorage["revolverSettings"] = JSON.stringify(settings);
+	} else {
+		settings = JSON.parse(localStorage["revolverSettings"]);
 	};
 	return true;	
 }
@@ -83,19 +85,33 @@ function grabTabSettings(tab, callback) {
 	}
 }
 
+function getAllTabsInCurrentWindow(callback){
+	chrome.tabs.query({windowId: chrome.windows.WINDOW_ID_CURRENT}, function(tabs){
+		callback(tabs);
+	});
+}
+
 //Change the badge icon/background color.  
 function badgeTabs(text) {
-	if(text === "on") {
-		chrome.browserAction.setBadgeText({text:"\u2022"}); //Play button
-	  	chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100]}); //Green
-	} else 
-	if (text === "pause"){
-		chrome.browserAction.setBadgeText({text:"\u2022"}); //Play button
-		chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100]}); //Yellow
-	} else {
-		chrome.browserAction.setBadgeText({text:"\u00D7"}); //Letter X
-	 	chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]}); //Red
-	}
+	getAllTabsInCurrentWindow(function(tabs){
+		if(tabs.length == 0){
+			chrome.browserAction.setBadgeText({text:"\u00D7"}); //Letter X
+	 		chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]}); //Red
+		}
+		for(var i=0;i<tabs.length;i++){
+			if(text === "on") {
+				chrome.browserAction.setBadgeText({text:"\u2022", tabId: tabs[i].id}); //Play button
+		  		chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100], tabId: tabs[i].id}); //Green
+			} else
+			if (text === "pause"){
+				chrome.browserAction.setBadgeText({text:"\u2022", tabId: tabs[i].id}); //Play button
+				chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100], tabId: tabs[i].id}); //Yellow
+			} else {
+				chrome.browserAction.setBadgeText({text:"\u00D7", tabId: tabs[i].id}); //Letter X
+		 		chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100], tabId: tabs[i].id}); //Red
+			}	
+		}		
+	});
 }
 
 //Helper method.  Checks if a string exists in an array.
@@ -171,7 +187,7 @@ function moveTabIfIdle(tabTimeout) {
 function moveTab() {
 	for(var i in activeWindows) {
 		windowId = activeWindows[i];
-		badgeTabs('on');
+//		badgeTabs('on');
 		setNextTabIndex();
 	}
 }
