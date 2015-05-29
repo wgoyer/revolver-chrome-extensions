@@ -13,7 +13,7 @@ var activeWindows = [],
 
 initSettings();
 
-// Check if the objects exist in local storage. 
+// Check if the objects exist in local storage, create them if they don't, load them if they do.
 function createBaseSettingsIfTheyDontExist(){
 	if(!localStorage["revolverSettings"]){
 		settings.seconds = 15;
@@ -172,6 +172,7 @@ function moveTabIfIdle(tabTimeout) {
 		// 15 is the lowest allowable number of seconds for this call
 		chrome.idle.queryState(15, function(state) {
 			if(state == 'idle') {
+				badgeTabs("on");
 				return moveTab();
 			} else {
 				badgeTabs("pause");

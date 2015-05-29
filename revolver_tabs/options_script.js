@@ -1,5 +1,4 @@
 /* global chrome */
-//Bug: Multiple tabs with same URL show up duplicate in adv settings.
 var bg = chrome.extension.getBackgroundPage();
 // Saves options to localStorage.
 function add_event_listeners(){
@@ -29,6 +28,7 @@ function save_options() {
         status2.innerHTML = "";
   }, 1000);
   localStorage["revolverSettings"] = JSON.stringify(appSettings);
+  bg.createBaseSettingsIfTheyDontExist();
 }
 
 function getCheckedStatus(appSettings, elementId){
@@ -117,8 +117,6 @@ function get_current_tabs(callback){
 
 function build_current_tabs_list(){ 
     get_current_tabs(function(allCurrentTabs){
-//        Need to change this so array is in its own attribute.  
-//        ToDo: Wrap advanced settings into regular settings storage, create function to load/save settings so it doesn't overwrite.
         if(localStorage["revolverAdvSettings"]){
         compare_saved_and_current_urls(function(urls){
             for(var i=0;i<urls.length;i++){
