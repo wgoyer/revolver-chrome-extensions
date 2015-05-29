@@ -28,7 +28,7 @@ function save_options() {
         status2.innerHTML = "";
   }, 1000);
   localStorage["revolverSettings"] = JSON.stringify(appSettings);
-  bg.createBaseSettingsIfTheyDontExist();
+  bg.updateSettings();
 }
 
 function getCheckedStatus(appSettings, elementId){

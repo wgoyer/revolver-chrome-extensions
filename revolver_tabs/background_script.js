@@ -4,10 +4,6 @@ var activeWindows = [],
 	tabsManifest = [],
 	settings = {},
 	advSettings = {},
-	tabReload = false,
-	tabInactive = false,
-	tabAutostart = false,
-	noRefreshList = [],
 	windowId,
 	moverTimeOut;
 
@@ -17,9 +13,9 @@ initSettings();
 function createBaseSettingsIfTheyDontExist(){
 	if(!localStorage["revolverSettings"]){
 		settings.seconds = 15;
-		settings.reload = tabReload;
-		settings.inactive = tabInactive;
-		settings.autoStart = tabAutostart;
+		settings.reload = false;
+		settings.inactive = false;
+		settings.autoStart = false;
 		localStorage["revolverSettings"] = JSON.stringify(settings);
 	} else {
 		settings = JSON.parse(localStorage["revolverSettings"]);
@@ -31,13 +27,8 @@ function initSettings(){
 	badgeTabs();
 	// If objects don't exist in local storage, create them.
 	createBaseSettingsIfTheyDontExist();
-//	if (!checkIfSettingsExist("revolverAdvSettings")) 
-	if (settings.reload) tabReload = true;
-	if (settings.inactive) tabInactive = true; 
-	if (settings.autostart) tabAutostart = true; 
-	if (settings.noRefreshList) noRefreshList = settings.noRefreshList;
 	// Check autostart flag and run.
-	if(tabAutostart) {
+	if(settings.autostart) {
 		chrome.tabs.query({'active': true}, function(tabs){
 			createTabsManifest(tabs[0].windowId, function(){
 				go(tabs[0].windowId);	
@@ -168,7 +159,7 @@ function activateTab(nextTab) {
 // Call moveTab if the user isn't interacting with the browser
 function moveTabIfIdle(tabTimeout) {
 	clearTimeout(moverTimeOut);
-	if (tabInactive) {
+	if (settings.inactive) {
 		// 15 is the lowest allowable number of seconds for this call
 		chrome.idle.queryState(15, function(state) {
 			if(state == 'idle') {
@@ -185,10 +176,10 @@ function moveTabIfIdle(tabTimeout) {
 }
 
 // Switches to next tab in the index, re-requests feed if at end of the index.
+// should move this into setNextTabIndex and remove the for loop.
 function moveTab() {
 	for(var i in activeWindows) {
 		windowId = activeWindows[i];
-//		badgeTabs('on');
 		setNextTabIndex();
 	}
 }
@@ -224,10 +215,23 @@ function assignSettingsToTabs(tabs, callback){
 	});
 }
 
+//***Modify this to dynamically create timeouts based on windowId.
 function setMoverTimeout(seconds){
 	var timeDelay = (parseInt(seconds)*1000);
 	moverTimeOut = setTimeout(function() {
 		console.log("timeout triggered.");
 		moveTabIfIdle(seconds); 
 	}, timeDelay);
+}
+
+//If a user changes settings this will update them on the fly.  Called from options_script.js
+function updateSettings(){
+	settings = JSON.parse(localStorage["revolverSettings"]);
+	getAllTabsInCurrentWindow(function(tabs){
+		assignBaseSettings(tabs, function(){
+			assignAdvancedSettings(tabs, function(){
+				return true;
+			});
+		});
+	});
 }
