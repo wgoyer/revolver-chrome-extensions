@@ -5,6 +5,7 @@ var activeWindows = [],
 	settings = {},
 	advSettings = {},
 	windowId,
+	moverTimeOut2 = {},
 	moverTimeOut;
 
 initSettings();
@@ -131,6 +132,7 @@ function go(windowId) {
 
 // Stop revolving the tabs
 function stop(windowId) {
+	removeTimeout(windowId);
 	clearTimeout(moverTimeOut);
         console.log('Stopped.');
 	var index = activeWindows.indexOf(windowId);
@@ -143,7 +145,7 @@ function stop(windowId) {
 // Switch to the next tab.
 function activateTab(nextTab) {
 	grabTabSettings(nextTab, function(tabSetting){
-		if(tabSetting.reload && !include(noRefreshList, nextTab.url)){
+		if(tabSetting.reload && !include(settings.noRefreshList, nextTab.url)){
 			chrome.tabs.update(nextTab.id, {selected: true}, function(){
 				chrome.tabs.reload(nextTab.id);
 				setMoverTimeout(tabSetting.seconds);
@@ -158,6 +160,7 @@ function activateTab(nextTab) {
 
 // Call moveTab if the user isn't interacting with the browser
 function moveTabIfIdle(tabTimeout) {
+	removeTimeout(**somewindowId**);
 	clearTimeout(moverTimeOut);
 	if (settings.inactive) {
 		// 15 is the lowest allowable number of seconds for this call
@@ -222,6 +225,17 @@ function setMoverTimeout(seconds){
 		console.log("timeout triggered.");
 		moveTabIfIdle(seconds); 
 	}, timeDelay);
+}
+
+function setMoverTimeoutPartTwo(id, seconds){
+	moverTimeOut2[id] = setTimeout(function(){
+		console.log("timeout2 Triggered.")
+		moveTabIfIdle();	
+	}, parseInt(seconds)*1000);
+}
+
+function removeTimeout(id){
+	clearTimeout(moverTimeOut2[id]);
 }
 
 //If a user changes settings this will update them on the fly.  Called from options_script.js
