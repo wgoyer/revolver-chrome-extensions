@@ -1,12 +1,11 @@
 /* global chrome */
 // Global Variables - When possible pulling from Local Storage set via Options page.
 var activeWindows = [],
-	tabsManifest = [],
+	tabsManifest = {},
 	settings = {},
 	advSettings = {},
 	windowId,
-	moverTimeOut2 = {},
-	moverTimeOut;
+	moverTimeOut = {};
 
 initSettings();
 
@@ -21,9 +20,12 @@ function createBaseSettingsIfTheyDontExist(){
 	} else {
 		settings = JSON.parse(localStorage["revolverSettings"]);
 	};
-	return true;	
+	if(localStorage["revolverAdvSettings"]){
+		advSettings = JSON.parse(localStorage["revolverAdvSettings"]);
+	}
+	return true;
 }
-
+// Main start function, 
 function initSettings(){
 	badgeTabs();
 	// If objects don't exist in local storage, create them.
@@ -48,7 +50,7 @@ function initSettings(){
 		});
 	});
 }
-
+// Checks for settings and assigns them if they don't exist.
 function assignBaseSettings(tabs, callback) {
 	for(var i = 0;i<tabs.length;i++){
 		tabs[i].reload = (tabs[i].reload || settings.reload);
@@ -56,7 +58,7 @@ function assignBaseSettings(tabs, callback) {
 	};
 	callback();
 }
-
+// If there are settings for the URL 
 function assignAdvancedSettings(tabs, callback) {
 	for(var y=0;y<tabs.length;y++){
 		for(var i=0;i<advSettings.length;i++){
@@ -68,21 +70,20 @@ function assignAdvancedSettings(tabs, callback) {
 	}
 	callback();
 }
-
-function grabTabSettings(tab, callback) {
-	for(var i=0; i<tabsManifest.length; i++){
-		if(tabsManifest[i].url === tab.url){
-			callback(tabsManifest[i]);
+// Get the settings for a tab.
+function grabTabSettings(windowId, tab, callback) {
+	for(var i=0; i<tabsManifest[windowId].length; i++){
+		if(tabsManifest[windowId][i].url === tab.url){
+			callback(tabsManifest[windowId][i]);
 		}
 	}
 }
-
+// Returns all the tabs for the current window.
 function getAllTabsInCurrentWindow(callback){
 	chrome.tabs.query({windowId: chrome.windows.WINDOW_ID_CURRENT}, function(tabs){
 		callback(tabs);
 	});
 }
-
 //Change the badge icon/background color.  
 function badgeTabs(text) {
 	getAllTabsInCurrentWindow(function(tabs){
@@ -105,12 +106,11 @@ function badgeTabs(text) {
 		}		
 	});
 }
-
 //Helper method.  Checks if a string exists in an array.
 function include(arr,url) {
     return (arr.indexOf(url) != -1);
 }
-
+//Helper method.  Checks if parameter exists in the activeWindows array which is populated by go()
 function activeInWindow(windowId){
 	for(var i in activeWindows) {
 		if(activeWindows[i] == windowId) {
@@ -118,88 +118,62 @@ function activeInWindow(windowId){
 		}
 	}
 }
-
 // Start revolving the tabs
 function go(windowId) {
 	chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
-		grabTabSettings(tab[0], function(tabSetting){
-			setMoverTimeout(tabSetting.seconds);
+		grabTabSettings(windowId, tab[0], function(tabSetting){
+			setMoverTimeout(windowId, tabSetting.seconds);
 			activeWindows.push(windowId);
 			badgeTabs('on');
 		});	
 	});
 }
-
 // Stop revolving the tabs
 function stop(windowId) {
-	removeTimeout(windowId);
-	clearTimeout(moverTimeOut);
-        console.log('Stopped.');
 	var index = activeWindows.indexOf(windowId);
+	removeTimeout(windowId);
 	if(index >= 0) {
 		activeWindows.splice(index);
 		badgeTabs('');
 	}
 }
-
 // Switch to the next tab.
 function activateTab(nextTab) {
-	grabTabSettings(nextTab, function(tabSetting){
+	grabTabSettings(nextTab.windowId, nextTab, function(tabSetting){
 		if(tabSetting.reload && !include(settings.noRefreshList, nextTab.url)){
 			chrome.tabs.update(nextTab.id, {selected: true}, function(){
 				chrome.tabs.reload(nextTab.id);
-				setMoverTimeout(tabSetting.seconds);
+				setMoverTimeout(tabSetting.windowId, tabSetting.seconds);
 			});
 		} else {
 			// Switch Tab right away
 			chrome.tabs.update(nextTab.id, {selected: true});
-			setMoverTimeout(tabSetting.seconds);
+			setMoverTimeout(tabSetting.windowId, tabSetting.seconds);
 		}	
 	});
 }
-
 // Call moveTab if the user isn't interacting with the browser
-function moveTabIfIdle(tabTimeout) {
-	removeTimeout(**somewindowId**);
-	clearTimeout(moverTimeOut);
+function moveTabIfIdle(timerWindowId, tabTimeout) {
 	if (settings.inactive) {
 		// 15 is the lowest allowable number of seconds for this call
 		chrome.idle.queryState(15, function(state) {
 			if(state == 'idle') {
 				badgeTabs("on");
-				return moveTab();
+				return moveTab(timerWindowId);
 			} else {
 				badgeTabs("pause");
-				return setMoverTimeout(tabTimeout);	
+				return setMoverTimeout(timerWindowId, tabTimeout)
 			}
 		});
 	} else {
-		moveTab();
+		moveTab(timerWindowId);
 	}
 }
-
 // Switches to next tab in the index, re-requests feed if at end of the index.
-// should move this into setNextTabIndex and remove the for loop.
-function moveTab() {
-	for(var i in activeWindows) {
-		windowId = activeWindows[i];
-		setNextTabIndex();
-	}
-}
-
-function createTabsManifest(windowId, callback){
-	chrome.tabs.query({"windowId" : windowId}, function(tabs){
-		tabsManifest = tabs;
-		assignSettingsToTabs(tabs, function(){
-			callback();
-		});
-	});
-}
-
-function setNextTabIndex() {
+function moveTab(timerWindowId) {
 	var nextTabIndex = 0;
-	chrome.tabs.getSelected(windowId, function(currentTab){
-		chrome.tabs.getAllInWindow(currentTab.windowId, function(tabs) {
+	chrome.tabs.getSelected(timerWindowId, function(currentTab){
+		chrome.tabs.getAllInWindow(timerWindowId, function(tabs) {
 			if(currentTab.index + 1 < tabs.length) {
 				nextTabIndex = currentTab.index + 1;
 			} else {
@@ -209,7 +183,16 @@ function setNextTabIndex() {
 		});
 	});
 }
-
+// Create the tabs object with settings in tabsManifest object.
+function createTabsManifest(windowId, callback){
+	chrome.tabs.query({"windowId" : windowId}, function(tabs){
+		assignSettingsToTabs(tabs, function(){
+			tabsManifest[windowId] = tabs;
+			callback();
+		});
+	});
+}
+// Go through each tab and assign settings to them.
 function assignSettingsToTabs(tabs, callback){
 	assignAdvancedSettings(tabs, function(){
 		assignBaseSettings(tabs, function(){
@@ -217,30 +200,21 @@ function assignSettingsToTabs(tabs, callback){
 		});	
 	});
 }
-
-//***Modify this to dynamically create timeouts based on windowId.
-function setMoverTimeout(seconds){
-	var timeDelay = (parseInt(seconds)*1000);
-	moverTimeOut = setTimeout(function() {
-		console.log("timeout triggered.");
-		moveTabIfIdle(seconds); 
-	}, timeDelay);
-}
-
-function setMoverTimeoutPartTwo(id, seconds){
-	moverTimeOut2[id] = setTimeout(function(){
-		console.log("timeout2 Triggered.")
-		moveTabIfIdle();	
+// Generate the timeout and assign it to moverTimeOut object.
+function setMoverTimeout(id, seconds){
+	moverTimeOut[id] = setTimeout(function(){
+		removeTimeout(id);
+		moveTabIfIdle(id, seconds);	
 	}, parseInt(seconds)*1000);
 }
-
+// Remove the timeout specified.
 function removeTimeout(id){
-	clearTimeout(moverTimeOut2[id]);
+	clearTimeout(moverTimeOut[id]);
 }
-
 //If a user changes settings this will update them on the fly.  Called from options_script.js
 function updateSettings(){
 	settings = JSON.parse(localStorage["revolverSettings"]);
+	advSettings = JSON.parse(localStorage["revolverAdvSettings"]);
 	getAllTabsInCurrentWindow(function(tabs){
 		assignBaseSettings(tabs, function(){
 			assignAdvancedSettings(tabs, function(){
