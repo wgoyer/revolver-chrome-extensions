@@ -58,7 +58,7 @@ function assignBaseSettings(tabs, callback) {
 	};
 	callback();
 }
-// If there are settings for the URL 
+// If there are advanced settings for the URL, set them to the tab.
 function assignAdvancedSettings(tabs, callback) {
 	for(var y=0;y<tabs.length;y++){
 		for(var i=0;i<advSettings.length;i++){
@@ -90,19 +90,20 @@ function badgeTabs(text) {
 		if(tabs.length == 0){
 			chrome.browserAction.setBadgeText({text:"\u00D7"}); //Letter X
 	 		chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]}); //Red
-		}
-		for(var i=0;i<tabs.length;i++){
-			if(text === "on") {
-				chrome.browserAction.setBadgeText({text:"\u2022", tabId: tabs[i].id}); //Play button
-		  		chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100], tabId: tabs[i].id}); //Green
-			} else
-			if (text === "pause"){
-				chrome.browserAction.setBadgeText({text:"\u2022", tabId: tabs[i].id}); //Play button
-				chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100], tabId: tabs[i].id}); //Yellow
-			} else {
-				chrome.browserAction.setBadgeText({text:"\u00D7", tabId: tabs[i].id}); //Letter X
-		 		chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100], tabId: tabs[i].id}); //Red
-			}	
+		} else {
+			for(var i=0;i<tabs.length;i++){
+				if(text === "on") {
+					chrome.browserAction.setBadgeText({text:"\u2022", tabId: tabs[i].id}); //Play button
+			  		chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100], tabId: tabs[i].id}); //Green
+				} else
+				if (text === "pause"){
+					chrome.browserAction.setBadgeText({text:"\u2022", tabId: tabs[i].id}); //Play button
+					chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100], tabId: tabs[i].id}); //Yellow
+				} else {
+					chrome.browserAction.setBadgeText({text:"\u00D7", tabId: tabs[i].id}); //Letter X
+			 		chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100], tabId: tabs[i].id}); //Red
+				}	
+			}
 		}		
 	});
 }
