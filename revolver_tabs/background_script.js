@@ -5,6 +5,7 @@ var activeWindows = [],
 	settings = {},
 	advSettings = {},
 	windowId,
+	windowStatus = {},
 	moverTimeOut = {};
 
 initSettings();
@@ -27,7 +28,7 @@ function createBaseSettingsIfTheyDontExist(){
 }
 // Main start function, 
 function initSettings(){
-	badgeTabs();
+	// badgeTabs();
 	// If objects don't exist in local storage, create them.
 	createBaseSettingsIfTheyDontExist();
 	// Check autostart flag and run.
@@ -38,16 +39,24 @@ function initSettings(){
 			});
 		});
 	};
+	chrome.tabs.onActivated.addListener(function(tab){
+		if(windowStatus[tab.windowId] === "on"){
+			badgeTabs("on", tab.windowId);
+		} else {
+			badgeTabs("off", tab.windowId);
+		}
+		console.log(tab.windowId);
+	});
 	//Event handler for starting/stopping Revolver tabs when clicked.
 	chrome.browserAction.onClicked.addListener(function(tab) {
 		windowId = tab.windowId;
-		createTabsManifest(windowId, function(){
 			if (activeInWindow(windowId)) {
 				stop(windowId);
 			} else {
-				go(windowId);
+				createTabsManifest(windowId, function(){
+					go(windowId);
+				});
 			}	
-		});
 	});
 }
 // Checks for settings and assigns them if they don't exist.
@@ -85,28 +94,32 @@ function getAllTabsInCurrentWindow(callback){
 	});
 }
 //Change the badge icon/background color.  
-function badgeTabs(text) {
-	getAllTabsInCurrentWindow(function(tabs){
-		if(tabs.length == 0){
-			chrome.browserAction.setBadgeText({text:"\u00D7"}); //Letter X
-	 		chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]}); //Red
+function badgeTabs(text, windowId) {
+	// if(text === "on") {
+	// 	chrome.browserAction.setBadgeText({text:"\u2022"}); //Play button
+  	// 	chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100]}); //Green
+	// } else
+	// if (text === "pause"){
+	// 	chrome.browserAction.setBadgeText({text:"\u2022"}); //Play button
+	// 	chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100]}); //Yellow
+	// } else {
+	// 	chrome.browserAction.setBadgeText({text:"\u00D7"}); //Letter X
+ 	// 	chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]}); //Red
+	// }	
+	chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
+		if(text === "on") {
+			chrome.browserAction.setBadgeText({text:"\u2022", tabId: tab[0].id}); //Play button
+	  		chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100], tabId: tab[0].id}); //Green
+		} else
+		if (text === "pause"){
+			chrome.browserAction.setBadgeText({text:"\u2022", tabId: tab[0].id}); //Play button
+			chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100], tabId: tab[0].id}); //Yellow
 		} else {
-			for(var i=0;i<tabs.length;i++){
-				if(text === "on") {
-					chrome.browserAction.setBadgeText({text:"\u2022", tabId: tabs[i].id}); //Play button
-			  		chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100], tabId: tabs[i].id}); //Green
-				} else
-				if (text === "pause"){
-					chrome.browserAction.setBadgeText({text:"\u2022", tabId: tabs[i].id}); //Play button
-					chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100], tabId: tabs[i].id}); //Yellow
-				} else {
-					chrome.browserAction.setBadgeText({text:"\u00D7", tabId: tabs[i].id}); //Letter X
-			 		chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100], tabId: tabs[i].id}); //Red
-				}	
-			}
-		}		
+			chrome.browserAction.setBadgeText({text:"\u00D7", tabId: tab[0].id}); //Letter X
+	 		chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100], tabId: tab[0].id}); //Red
+		}
 	});
-}
+}		
 //Helper method.  Checks if a string exists in an array.
 function include(arr,url) {
     return (arr.indexOf(url) != -1);
@@ -125,7 +138,8 @@ function go(windowId) {
 		grabTabSettings(windowId, tab[0], function(tabSetting){
 			setMoverTimeout(windowId, tabSetting.seconds);
 			activeWindows.push(windowId);
-			badgeTabs('on');
+			windowStatus[windowId] = "on";
+			badgeTabs('on', windowId);
 		});	
 	});
 }
@@ -135,7 +149,10 @@ function stop(windowId) {
 	removeTimeout(windowId);
 	if(index >= 0) {
 		activeWindows.splice(index);
-		badgeTabs('');
+		chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
+			windowStatus[windowId] = "off";
+			badgeTabs('', windowId);	
+		});
 	}
 }
 // Switch to the next tab.
@@ -159,10 +176,10 @@ function moveTabIfIdle(timerWindowId, tabTimeout) {
 		// 15 is the lowest allowable number of seconds for this call
 		chrome.idle.queryState(15, function(state) {
 			if(state == 'idle') {
-				badgeTabs("on");
+				badgeTabs("on", timerWindowId);
 				return moveTab(timerWindowId);
 			} else {
-				badgeTabs("pause");
+				badgeTabs("pause", timerWindowId);
 				return setMoverTimeout(timerWindowId, tabTimeout)
 			}
 		});
@@ -202,15 +219,15 @@ function assignSettingsToTabs(tabs, callback){
 	});
 }
 // Generate the timeout and assign it to moverTimeOut object.
-function setMoverTimeout(id, seconds){
-	moverTimeOut[id] = setTimeout(function(){
-		removeTimeout(id);
-		moveTabIfIdle(id, seconds);	
+function setMoverTimeout(timerWindowId, seconds){
+	moverTimeOut[timerWindowId] = setTimeout(function(){
+		removeTimeout(timerWindowId);
+		moveTabIfIdle(timerWindowId, seconds);	
 	}, parseInt(seconds)*1000);
 }
 // Remove the timeout specified.
-function removeTimeout(id){
-	clearTimeout(moverTimeOut[id]);
+function removeTimeout(windowId){
+	clearTimeout(moverTimeOut[windowId]);
 }
 //If a user changes settings this will update them on the fly.  Called from options_script.js
 function updateSettings(){
