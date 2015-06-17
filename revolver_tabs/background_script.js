@@ -41,27 +41,15 @@ function initSettings(){
 	};
 	//Event handler for checking/setting tab status when creating a tab.
 	chrome.tabs.onCreated.addListener(function(tab){
-		if(windowStatus[tab.windowId] === "on"){
-			badgeTabs("on", tab.windowId);
-		} else {
-			badgeTabs("off", tab.windowId);
-		}
+		setBadgeStatusOnActiveWindow(tab);
 	});
 	//Event handler for checking/setting tab status when reloading a tab.
 	chrome.tabs.onUpdated.addListener(function(tabId, changeObj, tab){
-		if(windowStatus[tab.windowId] === "on"){
-			badgeTabs("on", tab.windowId);
-		} else {
-			badgeTabs("off", tab.windowId);
-		}
+		setBadgeStatusOnActiveWindow(tab);
 	});
 	//Event handler for checking/setting tab status when switching to a tab.
 	chrome.tabs.onActivated.addListener(function(tab){
-		if(windowStatus[tab.windowId] === "on"){
-			badgeTabs("on", tab.windowId);
-		} else {
-			badgeTabs("off", tab.windowId);
-		}
+		setBadgeStatusOnActiveWindow(tab);
 	});
 	//Event handler for starting/stopping Revolver tabs when clicked.
 	chrome.browserAction.onClicked.addListener(function(tab) {
@@ -82,6 +70,14 @@ function assignBaseSettings(tabs, callback) {
 		tabs[i].seconds = (tabs[i].seconds || settings.seconds);	
 	};
 	callback();
+}
+// If the window has revolver tabs enabled, make sure the badge text reflects that.
+function setBadgeStatusOnActiveWindow(tab){
+	if(windowStatus[tab.windowId] === "on"){
+			badgeTabs("on", tab.windowId);
+		} else {
+			badgeTabs("off", tab.windowId);
+		}
 }
 // If there are advanced settings for the URL, set them to the tab.
 function assignAdvancedSettings(tabs, callback) {
