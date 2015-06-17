@@ -48,7 +48,7 @@ function initSettings(){
 		}
 	});
 	//Event handler for checking/setting tab status when reloading a tab.
-	chrome.tabs.onUpdated.addListener(function(tab){
+	chrome.tabs.onUpdated.addListener(function(tabId, changeObj, tab){
 		if(windowStatus[tab.windowId] === "on"){
 			badgeTabs("on", tab.windowId);
 		} else {
