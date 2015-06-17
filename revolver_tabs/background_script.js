@@ -28,7 +28,7 @@ function createBaseSettingsIfTheyDontExist(){
 }
 // Main start function, 
 function initSettings(){
-	// badgeTabs();
+	badgeTabs("default");
 	// If objects don't exist in local storage, create them.
 	createBaseSettingsIfTheyDontExist();
 	// Check autostart flag and run.
@@ -39,13 +39,29 @@ function initSettings(){
 			});
 		});
 	};
+	//Event handler for checking/setting tab status when creating a tab.
+	chrome.tabs.onCreated.addListener(function(tab){
+		if(windowStatus[tab.windowId] === "on"){
+			badgeTabs("on", tab.windowId);
+		} else {
+			badgeTabs("off", tab.windowId);
+		}
+	});
+	//Event handler for checking/setting tab status when reloading a tab.
+	chrome.tabs.onUpdated.addListener(function(tab){
+		if(windowStatus[tab.windowId] === "on"){
+			badgeTabs("on", tab.windowId);
+		} else {
+			badgeTabs("off", tab.windowId);
+		}
+	});
+	//Event handler for checking/setting tab status when switching to a tab.
 	chrome.tabs.onActivated.addListener(function(tab){
 		if(windowStatus[tab.windowId] === "on"){
 			badgeTabs("on", tab.windowId);
 		} else {
 			badgeTabs("off", tab.windowId);
 		}
-		console.log(tab.windowId);
 	});
 	//Event handler for starting/stopping Revolver tabs when clicked.
 	chrome.browserAction.onClicked.addListener(function(tab) {
@@ -95,30 +111,24 @@ function getAllTabsInCurrentWindow(callback){
 }
 //Change the badge icon/background color.  
 function badgeTabs(text, windowId) {
-	// if(text === "on") {
-	// 	chrome.browserAction.setBadgeText({text:"\u2022"}); //Play button
-  	// 	chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100]}); //Green
-	// } else
-	// if (text === "pause"){
-	// 	chrome.browserAction.setBadgeText({text:"\u2022"}); //Play button
-	// 	chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100]}); //Yellow
-	// } else {
-	// 	chrome.browserAction.setBadgeText({text:"\u00D7"}); //Letter X
- 	// 	chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]}); //Red
-	// }	
-	chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
-		if(text === "on") {
-			chrome.browserAction.setBadgeText({text:"\u2022", tabId: tab[0].id}); //Play button
-	  		chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100], tabId: tab[0].id}); //Green
-		} else
-		if (text === "pause"){
-			chrome.browserAction.setBadgeText({text:"\u2022", tabId: tab[0].id}); //Play button
-			chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100], tabId: tab[0].id}); //Yellow
-		} else {
-			chrome.browserAction.setBadgeText({text:"\u00D7", tabId: tab[0].id}); //Letter X
-	 		chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100], tabId: tab[0].id}); //Red
-		}
-	});
+	if(text === "default") {
+		chrome.browserAction.setBadgeText({text:"\u00D7"}); //Letter X
+ 		chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100]}); //Red	
+	} else {
+		chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
+			if(text === "on") {
+				chrome.browserAction.setBadgeText({text:"\u2022", tabId: tab[0].id}); //Play button
+		  		chrome.browserAction.setBadgeBackgroundColor({color:[0,255,0,100], tabId: tab[0].id}); //Green
+			} else
+			if (text === "pause"){
+				chrome.browserAction.setBadgeText({text:"\u2022", tabId: tab[0].id}); //Play button
+				chrome.browserAction.setBadgeBackgroundColor({color:[255,238,0,100], tabId: tab[0].id}); //Yellow
+			} else {
+				chrome.browserAction.setBadgeText({text:"\u00D7", tabId: tab[0].id}); //Letter X
+		 		chrome.browserAction.setBadgeBackgroundColor({color:[255,0,0,100], tabId: tab[0].id}); //Red
+			}
+		});	
+	}	
 }		
 //Helper method.  Checks if a string exists in an array.
 function include(arr,url) {
@@ -159,9 +169,10 @@ function stop(windowId) {
 function activateTab(nextTab) {
 	grabTabSettings(nextTab.windowId, nextTab, function(tabSetting){
 		if(tabSetting.reload && !include(settings.noRefreshList, nextTab.url)){
-			chrome.tabs.update(nextTab.id, {selected: true}, function(){
-				chrome.tabs.reload(nextTab.id);
-				setMoverTimeout(tabSetting.windowId, tabSetting.seconds);
+			chrome.tabs.reload(nextTab.id, function(){
+				chrome.tabs.update(nextTab.id, {selected: true}, function(){
+					setMoverTimeout(tabSetting.windowId, tabSetting.seconds);
+				});
 			});
 		} else {
 			// Switch Tab right away
