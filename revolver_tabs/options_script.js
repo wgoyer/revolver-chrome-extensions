@@ -1,16 +1,16 @@
 /* global chrome */
 var bg = chrome.extension.getBackgroundPage();
 // Saves options to localStorage.
-function add_event_listeners(){
-    restore_options();
-    if (localStorage["revolverAdvSettings"]) restore_advanced_options();
-    build_current_tabs_list();
-    document.querySelector('#save').addEventListener('click', save_options);
-    document.querySelector('#savetop').addEventListener('click', save_options);
+function addEventListeners(){
+    restoreOptions();
+    if (localStorage["revolverAdvSettings"]) restoreAdvancedOptions();
+    buildCurrentTabsList();
+    document.querySelector('#save').addEventListener('click', saveOptions);
+    document.querySelector('#savetop').addEventListener('click', saveOptions);
 }
 
 //Base options code
-function save_options() {
+function saveOptions() {
     var appSettings = {},
         status = document.getElementById("status"),
         status2 = document.getElementById("status2");
@@ -41,7 +41,7 @@ function getCheckedStatus(appSettings, elementId){
 }
 
 // Restores saved values from localStorage.
-function restore_options() {
+function restoreOptions() {
     var appSettings = JSON.parse(localStorage["revolverSettings"]);
         document.getElementById("seconds").value = (appSettings.seconds || 10);
         document.getElementById("reload").checked = (appSettings.reload || false);
@@ -59,10 +59,11 @@ function restore_options() {
 }
 
 //Advanced options code
-function save_advanced_options(){
+function saveAdvancedOptions(){
     var advUrlObjectArray = [],
         advancedSettings = document.getElementById("adv-settings"),
         advancedDivs = advancedSettings.getElementsByTagName("div"),
+        status = document.getElementById("status3"),
         divInputTags;
         for(var i = 0, checkboxes=0;i<advancedDivs.length;i++){
            if(advancedDivs[i].getElementsByClassName("enable")[0].checked == true){
@@ -76,18 +77,23 @@ function save_advanced_options(){
            }
         }
         localStorage["revolverAdvSettings"] = JSON.stringify(advUrlObjectArray);
+        bg.updateSettings();
+        status.innerHTML = "OPTIONS SAVED";
+        setTimeout(function() {
+            status.innerHTML = "";
+         }, 1000);
 }
 
-function restore_advanced_options(){
+function restoreAdvancedOptions(){
     var settings = JSON.parse(localStorage["revolverAdvSettings"]);
     if(settings.length>0){
         for(var i=0;i<settings.length;i++){
-            generate_advanced_settings_html(settings[i], true);
+            generateAdvancedSettingsHtml(settings[i], true);
         }    
     }
 }
 
-function generate_advanced_settings_html(tab, saved){
+function generateAdvancedSettingsHtml(tab, saved){
     var advancedSettings = document.getElementsByClassName("adv-settings")[0],
         enableHtmlChunk = '<div><input type="checkbox" class="enable" name="enable">',
         iconAndUrlChunk = '<img class="icon" src='+tab.favIconUrl+'\><input class="url-text" type="text" value="'+tab.url+'">',
@@ -103,9 +109,9 @@ function generate_advanced_settings_html(tab, saved){
         advancedSettings.innerHTML += enableHtmlChunk + iconAndUrlChunk + secondsChunk + reloadChunk;
 };
 
-function get_current_tabs(callback){
+function getCurrentTabs(callback){
     var returnTabs=[];
-    chrome.tabs.query({"windowId":chrome.windows.WINDOW_ID_CURRENT}, function(tabs){
+    chrome.tabs.query({"windowId":chrome.windows.WINDOWIDCURRENT}, function(tabs){
        tabs.forEach(function(tab){
           if(tab.url.substring(0,16) != "chrome-extension"){
               returnTabs.push(tab);
@@ -115,29 +121,29 @@ function get_current_tabs(callback){
     });
 }
 
-function build_current_tabs_list(){ 
-    get_current_tabs(function(allCurrentTabs){
+function buildCurrentTabsList(){ 
+    getCurrentTabs(function(allCurrentTabs){
         if(localStorage["revolverAdvSettings"]){
-        compare_saved_and_current_urls(function(urls){
+        compareSavedAndCurrentUrls(function(urls){
             for(var i=0;i<urls.length;i++){
                 for(var y=0;y<allCurrentTabs.length;y++){
                     if(urls[i] === allCurrentTabs[y].url){
-                        generate_advanced_settings_html(allCurrentTabs[y]);
+                        generateAdvancedSettingsHtml(allCurrentTabs[y]);
                     }
                 }
             } 
-            create_advanced_save_button();
+            createAdvancedSaveButton();
         });    
         } else {
             allCurrentTabs.forEach(function(tab) {
-                generate_advanced_settings_html(tab);
+                generateAdvancedSettingsHtml(tab);
             });
-            create_advanced_save_button();
+            createAdvancedSaveButton();
         }
     });
 }
 
-function compare_saved_and_current_urls(callback){
+function compareSavedAndCurrentUrls(callback){
     var currentTabsUrls = [],
         savedTabsUrls = [],
         urlsToWrite = [];
@@ -145,7 +151,7 @@ function compare_saved_and_current_urls(callback){
     JSON.parse(localStorage["revolverAdvSettings"]).forEach(function(save){
        savedTabsUrls.push(save.url); 
     });
-    get_current_tabs(function(allCurrentTabs){
+    getCurrentTabs(function(allCurrentTabs){
        for(var i=0;i<allCurrentTabs.length;i++){
          currentTabsUrls.push(allCurrentTabs[i].url);
        };
@@ -158,17 +164,17 @@ function compare_saved_and_current_urls(callback){
     });
 }
 
-function create_advanced_save_button(){
+function createAdvancedSaveButton(){
     var parent = document.querySelector("#adv-settings"),
         advSaveButton = document.createElement("button"),
         advSaveIndicator = document.createElement("span");
     advSaveButton.setAttribute("id", "adv-save");
     advSaveButton.innerText = "Save";
-    advSaveButton.addEventListener("click", save_advanced_options);
+    advSaveButton.addEventListener("click", saveAdvancedOptions);
     advSaveIndicator.setAttribute("id", "status3");
     parent.appendChild(advSaveButton);
     parent.appendChild(advSaveIndicator); 
 }
 
 // Load settings and add listeners:
-document.addEventListener('DOMContentLoaded', add_event_listeners);
+document.addEventListener('DOMContentLoaded', addEventListeners);

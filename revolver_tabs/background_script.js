@@ -6,7 +6,8 @@ var activeWindows = [],
 	advSettings = {},
 	windowId,
 	windowStatus = {},
-	moverTimeOut = {};
+	moverTimeOut = {},
+	listeners = {};
 
 initSettings();
 
@@ -26,44 +27,23 @@ function createBaseSettingsIfTheyDontExist(){
 	}
 	return true;
 }
-// Main start function, 
+// Main start function:  Sets badge text to stop state, creates objects in local storage if they don't exist
+// and adds the event listeners to stop/start the extension as well as change badge text.  If autostart is
+// enabled the system will start revolver tabs without prompting.
 function initSettings(){
 	badgeTabs("default");
-	// If objects don't exist in local storage, create them.
 	createBaseSettingsIfTheyDontExist();
-	// Check autostart flag and run.
-	if(settings.autostart) {
-		chrome.tabs.query({'active': true}, function(tabs){
-			createTabsManifest(tabs[0].windowId, function(){
-				go(tabs[0].windowId);	
-			});
-		});
-	};
-	//Event handler for checking/setting tab status when creating a tab.
-	chrome.tabs.onCreated.addListener(function(tab){
-		setBadgeStatusOnActiveWindow(tab);
-	});
-	//Event handler for checking/setting tab status when reloading a tab.
-	chrome.tabs.onUpdated.addListener(function(tabId, changeObj, tab){
-		setBadgeStatusOnActiveWindow(tab);
-	});
-	//Event handler for checking/setting tab status when switching to a tab.
-	chrome.tabs.onActivated.addListener(function(tab){
-		setBadgeStatusOnActiveWindow(tab);
-	});
-	//Event handler for starting/stopping Revolver tabs when clicked.
-	chrome.browserAction.onClicked.addListener(function(tab) {
-		windowId = tab.windowId;
-			if (activeInWindow(windowId)) {
-				stop(windowId);
-			} else {
-				createTabsManifest(windowId, function(){
-					go(windowId);
+	addEventListeners("startup", function(){
+		if(settings.autostart) {
+			chrome.tabs.query({'active': true}, function(tabs){
+				createTabsManifest(tabs[0].windowId, function(){
+					go(tabs[0].windowId);	
 				});
-			}	
+			});
+		};	
 	});
 }
-// Checks for settings and assigns them if they don't exist.
+// Checks each tab object for settings, if they don't exist assign them to the object.
 function assignBaseSettings(tabs, callback) {
 	for(var i = 0;i<tabs.length;i++){
 		tabs[i].reload = (tabs[i].reload || settings.reload);
@@ -105,6 +85,62 @@ function getAllTabsInCurrentWindow(callback){
 		callback(tabs);
 	});
 }
+// Creates all of the event listeners to start/stop the extension and ensure badge text is up to date.
+function addEventListeners(type, callback){
+	if(type === "startup"){
+		chrome.browserAction.onClicked.addListener(function(tab) {
+			windowId = tab.windowId;
+			if (activeInWindow(windowId)) {
+				stop(windowId);
+			} else {
+				createTabsManifest(windowId, function(){
+					go(windowId);
+				});
+			}
+			callback();
+		});	
+	} else {
+		chrome.tabs.onCreated.addListener(
+			listeners.onCreated = function (tab){
+				createTabsManifest(tab.windowId, function(){
+					setBadgeStatusOnActiveWindow(tab);	
+				});
+			}
+		);
+		chrome.tabs.onUpdated.addListener(
+			listeners.onUpdated = function onUpdated(tabId, changeObj, tab){
+				setBadgeStatusOnActiveWindow(tab);
+			}
+		);
+		chrome.tabs.onActivated.addListener(
+			listeners.onActivated = function(tab){
+				setBadgeStatusOnActiveWindow(tab);
+			}
+		);
+		chrome.tabs.onAttached.addListener(
+			listeners.onAttached = function(tabId, newWindow){
+				createTabsManifest(newWindow.newWindowId, function(){
+					return true;
+				});
+			}
+		);
+		chrome.tabs.onDetached.addListener(
+			listeners.onDetached = function(tabId, detachWindow){
+				createTabsManifest(detachWindow.oldWindowId, function(){
+					return true;
+				});
+			}
+		);
+		chrome.tabs.onRemoved.addListener(
+			listeners.onRemoved = function(tabId, removedFromWindow){
+				createTabsManifest(removedFromWindow.windowId, function(){
+					return true;
+				});
+			}
+		);
+		callback();	
+	}	
+};
 //Change the badge icon/background color.  
 function badgeTabs(text, windowId) {
 	if(text === "default") {
@@ -140,13 +176,15 @@ function activeInWindow(windowId){
 }
 // Start revolving the tabs
 function go(windowId) {
-	chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
-		grabTabSettings(windowId, tab[0], function(tabSetting){
-			setMoverTimeout(windowId, tabSetting.seconds);
-			activeWindows.push(windowId);
-			windowStatus[windowId] = "on";
-			badgeTabs('on', windowId);
-		});	
+	addEventListeners(null, function(){
+		chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
+			grabTabSettings(windowId, tab[0], function(tabSetting){
+				setMoverTimeout(windowId, tabSetting.seconds);
+				activeWindows.push(windowId);
+				windowStatus[windowId] = "on";
+				badgeTabs('on', windowId);
+			});	
+		});
 	});
 }
 // Stop revolving the tabs
@@ -157,7 +195,7 @@ function stop(windowId) {
 		activeWindows.splice(index);
 		chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
 			windowStatus[windowId] = "off";
-			badgeTabs('', windowId);	
+			badgeTabs('', windowId);
 		});
 	}
 }
@@ -243,7 +281,9 @@ function updateSettings(){
 	getAllTabsInCurrentWindow(function(tabs){
 		assignBaseSettings(tabs, function(){
 			assignAdvancedSettings(tabs, function(){
-				return true;
+				createTabsManifest(tabs[0].windowId, function(){
+					return true;	
+				})
 			});
 		});
 	});
