@@ -225,7 +225,7 @@ function moveTabIfIdle(timerWindowId, tabTimeout) {
 				return moveTab(timerWindowId);
 			} else {
 				badgeTabs("pause", timerWindowId);
-				return setMoverTimeout(timerWindowId, tabTimeout)
+				return setMoverTimeout(timerWindowId, tabTimeout);
 			}
 		});
 	} else {
@@ -283,7 +283,7 @@ function updateSettings(){
 			assignAdvancedSettings(tabs, function(){
 				createTabsManifest(tabs[0].windowId, function(){
 					return true;	
-				})
+				});
 			});
 		});
 	});
