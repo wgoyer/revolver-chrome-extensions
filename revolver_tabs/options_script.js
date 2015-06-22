@@ -5,15 +5,13 @@ function addEventListeners(){
     restoreOptions();
     if (localStorage["revolverAdvSettings"]) restoreAdvancedOptions();
     buildCurrentTabsList();
-    document.querySelector('#save').addEventListener('click', saveOptions);
-    document.querySelector('#savetop').addEventListener('click', saveOptions);
+    document.querySelector('#save').addEventListener('click', saveAllOptions);
 }
 
 //Base options code
-function saveOptions() {
+function saveBaseOptions(callback) {
     var appSettings = {},
-        status = document.getElementById("status"),
-        status2 = document.getElementById("status2");
+        status = document.getElementById("status");
     appSettings.seconds = document.getElementById("seconds").value;
     bg.timeDelay = (document.getElementById("seconds").value*1000);
     getCheckedStatus(appSettings, "reload");
@@ -22,13 +20,11 @@ function saveOptions() {
     appSettings.noRefreshList = document.getElementById('noRefreshList').value.split('\n');
     bg.noRefreshList = document.getElementById('noRefreshList').value.split('\n');  
     status.innerHTML = "OPTIONS SAVED";
-    status2.innerHTML = "OPTIONS SAVED";
     setTimeout(function() {
         status.innerHTML = "";
-        status2.innerHTML = "";
   }, 1000);
   localStorage["revolverSettings"] = JSON.stringify(appSettings);
-  bg.updateSettings();
+  callback();
 }
 
 function getCheckedStatus(appSettings, elementId){
@@ -42,7 +38,8 @@ function getCheckedStatus(appSettings, elementId){
 
 // Restores saved values from localStorage.
 function restoreOptions() {
-    var appSettings = JSON.parse(localStorage["revolverSettings"]);
+    var appSettings = {};
+    if (localStorage["revolverSettings"]) appSettings = JSON.parse(localStorage["revolverSettings"]);
         document.getElementById("seconds").value = (appSettings.seconds || 10);
         document.getElementById("reload").checked = (appSettings.reload || false);
         document.getElementById("inactive").checked = (appSettings.inactive || false);
@@ -59,7 +56,7 @@ function restoreOptions() {
 }
 
 //Advanced options code
-function saveAdvancedOptions(){
+function saveAdvancedOptions(callback){
     var advUrlObjectArray = [],
         advancedSettings = document.getElementById("adv-settings"),
         advancedDivs = advancedSettings.getElementsByTagName("div"),
@@ -82,6 +79,7 @@ function saveAdvancedOptions(){
         setTimeout(function() {
             status.innerHTML = "";
          }, 1000);
+        callback();
 }
 
 function restoreAdvancedOptions(){
@@ -111,8 +109,8 @@ function generateAdvancedSettingsHtml(tab, saved){
 
 function getCurrentTabs(callback){
     var returnTabs=[];
-    chrome.tabs.query({"windowId":chrome.windows.WINDOWIDCURRENT}, function(tabs){
-       tabs.forEach(function(tab){
+    chrome.windows.getCurrent({populate: true}, function(window){
+        window.tabs.forEach(function(tab){
           if(tab.url.substring(0,16) != "chrome-extension"){
               returnTabs.push(tab);
           }
@@ -164,13 +162,21 @@ function compareSavedAndCurrentUrls(callback){
     });
 }
 
+function saveAllOptions(){
+    saveBaseOptions(function(){
+       saveAdvancedOptions(function(){
+          return true; 
+       });
+    });
+}
+
 function createAdvancedSaveButton(){
     var parent = document.querySelector("#adv-settings"),
         advSaveButton = document.createElement("button"),
         advSaveIndicator = document.createElement("span");
     advSaveButton.setAttribute("id", "adv-save");
     advSaveButton.innerText = "Save";
-    advSaveButton.addEventListener("click", saveAdvancedOptions);
+    advSaveButton.addEventListener("click", saveAllOptions);
     advSaveIndicator.setAttribute("id", "status3");
     parent.appendChild(advSaveButton);
     parent.appendChild(advSaveIndicator); 
