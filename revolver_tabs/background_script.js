@@ -41,7 +41,7 @@ function initSettings(){
 				});
 			});
 		};	
-	});
+	});	
 }
 // Checks each tab object for settings, if they don't exist assign them to the object.
 function assignBaseSettings(tabs, callback) {
@@ -53,11 +53,9 @@ function assignBaseSettings(tabs, callback) {
 }
 // If the window has revolver tabs enabled, make sure the badge text reflects that.
 function setBadgeStatusOnActiveWindow(tab){
-	if(windowStatus[tab.windowId] === "on"){
-			badgeTabs("on", tab.windowId);
-		} else {
-			badgeTabs("off", tab.windowId);
-		}
+	if(windowStatus[tab.windowId] === "on")	badgeTabs("on", tab.windowId);
+	else if (windowStatus[tab.windowId] === "pause") badgeTabs("pause", tab.windowId);
+	else badgeTabs("", tab.windowId);
 }
 // If there are advanced settings for the URL, set them to the tab.
 function assignAdvancedSettings(tabs, callback) {
@@ -97,8 +95,8 @@ function addEventListeners(type, callback){
 					go(windowId);
 				});
 			}
-			callback();
 		});	
+		callback();
 	} else {
 		chrome.tabs.onCreated.addListener(
 			listeners.onCreated = function (tab){
@@ -192,7 +190,7 @@ function stop(windowId) {
 	var index = activeWindows.indexOf(windowId);
 	removeTimeout(windowId);
 	if(index >= 0) {
-		activeWindows.splice(index);
+		activeWindows.splice(index, 1);
 		chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
 			windowStatus[windowId] = "off";
 			badgeTabs('', windowId);
@@ -221,9 +219,11 @@ function moveTabIfIdle(timerWindowId, tabTimeout) {
 		// 15 is the lowest allowable number of seconds for this call
 		chrome.idle.queryState(15, function(state) {
 			if(state == 'idle') {
+				windowStatus[timerWindowId] = "on";
 				badgeTabs("on", timerWindowId);
 				return moveTab(timerWindowId);
 			} else {
+				windowStatus[timerWindowId] = "pause";
 				badgeTabs("pause", timerWindowId);
 				return setMoverTimeout(timerWindowId, tabTimeout);
 			}
