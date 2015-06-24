@@ -9,7 +9,10 @@ var activeWindows = [],
 	moverTimeOut = {},
 	listeners = {};
 
-initSettings();
+checkForAndMigrateOldSettings(function(){
+	initSettings();	
+});
+
 
 // Check if the objects exist in local storage, create them if they don't, load them if they do.
 function createBaseSettingsIfTheyDontExist(){
@@ -27,6 +30,13 @@ function createBaseSettingsIfTheyDontExist(){
 	}
 	return true;
 }
+function autoStartIfEnabled(windowId){
+	if(settings.autostart) {
+		createTabsManifest(windowId, function(){
+			go(windowId);
+		});
+	}	
+};
 // Main start function:  Sets badge text to stop state, creates objects in local storage if they don't exist
 // and adds the event listeners to stop/start the extension as well as change badge text.  If autostart is
 // enabled the system will start revolver tabs without prompting.
@@ -34,14 +44,27 @@ function initSettings(){
 	badgeTabs("default");
 	createBaseSettingsIfTheyDontExist();
 	addEventListeners("startup", function(){
-		if(settings.autostart) {
-			chrome.tabs.query({'active': true}, function(tabs){
-				createTabsManifest(tabs[0].windowId, function(){
-					go(tabs[0].windowId);	
-				});
-			});
-		};	
+		autoStartIfEnabled(chrome.windows.WINDOW_ID_CURRENT);
 	});	
+}
+// This will convert users old settings into the new object format and remove the old ones.
+function checkForAndMigrateOldSettings(callback){
+	if(localStorage["revolverSettings"]) callback();
+	else {
+		var oldSettings = ["seconds", "autostart", "inactive", "noRefreshList", "reload"],
+			tempSettings = {};
+		for(var i=0;i<oldSettings.length;i++){
+			if(localStorage[oldSettings[i]]) {
+				tempSettings[oldSettings[i]] = localStorage[oldSettings[i]];
+				delete localStorage[oldSettings[i]];
+			}
+		}
+		console.log(tempSettings);
+		if(JSON.stringify(tempSettings) != "{}"){
+			localStorage["revolverSettings"] = JSON.stringify(tempSettings);	
+		}
+		callback();
+	}
 }
 // Checks each tab object for settings, if they don't exist assign them to the object.
 function assignBaseSettings(tabs, callback) {
@@ -134,6 +157,11 @@ function addEventListeners(type, callback){
 				createTabsManifest(removedFromWindow.windowId, function(){
 					return true;
 				});
+			}
+		);
+		chrome.windows.onCreated.addListener(
+			listeners.onWindowCreated = function(window){
+				autoStartIfEnabled(window.id);
 			}
 		);
 		callback();	
