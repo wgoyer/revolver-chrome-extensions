@@ -12,8 +12,6 @@ var activeWindows = [],
 checkForAndMigrateOldSettings(function(){
 	initSettings();	
 });
-
-
 // Check if the objects exist in local storage, create them if they don't, load them if they do.
 function createBaseSettingsIfTheyDontExist(){
 	if(!localStorage["revolverSettings"]){
@@ -78,7 +76,7 @@ function assignBaseSettings(tabs, callback) {
 function setBadgeStatusOnActiveWindow(tab){
 	if(windowStatus[tab.windowId] === "on")	badgeTabs("on", tab.windowId);
 	else if (windowStatus[tab.windowId] === "pause") badgeTabs("pause", tab.windowId);
-	else badgeTabs("", tab.windowId);
+	else if (activeInWindow(tab.windowId)) badgeTabs("", tab.windowId);
 }
 // If there are advanced settings for the URL, set them to the tab.
 function assignAdvancedSettings(tabs, callback) {
@@ -131,6 +129,9 @@ function addEventListeners(type, callback){
 		chrome.tabs.onUpdated.addListener(
 			listeners.onUpdated = function onUpdated(tabId, changeObj, tab){
 				setBadgeStatusOnActiveWindow(tab);
+				if(changeObj.url) createTabsManifest(tab.windowId, function(){
+					return true;
+				});
 			}
 		);
 		chrome.tabs.onActivated.addListener(
@@ -168,6 +169,9 @@ function addEventListeners(type, callback){
 			listeners.onWindowRemoved = function(window){
 				var index = activeWindows.indexOf(window.id);
 				activeWindows.splice(index, 1);
+				delete windowStatus[window.id];
+				delete tabsManifest[window.id];
+				removeTimeout(moverTimeOut[windowId]);
 			}
 		);
 		callback();	
@@ -206,13 +210,23 @@ function activeInWindow(windowId){
 		}
 	}
 }
+// This stupid function exists because for whatever reason pushing the windowId to the array is duplicating windowIds.
+// when auto-start is enabled and the user creates a brand new window.  It's only called one time but still duplicated.  
+// Potential fix is to loop over the window status until it's finished loading then update the array?
+function addToActiveWindows(windowId){
+	for(var i=0;i<activeWindows.length;i++){
+		if(activeWindows[i] === windowId) return;
+	}
+	activeWindows.push(windowId);
+}
 // Start revolving the tabs
 function go(windowId) {
 	addEventListeners(null, function(){
 		chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
 			grabTabSettings(windowId, tab[0], function(tabSetting){
 				setMoverTimeout(windowId, tabSetting.seconds);
-				activeWindows.push(windowId);
+				addToActiveWindows(windowId);
+				// activeWindows.push(windowId);
 				windowStatus[windowId] = "on";
 				badgeTabs('on', windowId);
 			});	
