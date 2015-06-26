@@ -164,6 +164,12 @@ function addEventListeners(type, callback){
 				autoStartIfEnabled(window.id);
 			}
 		);
+		chrome.windows.onRemoved.addListener(
+			listeners.onWindowRemoved = function(window){
+				var index = activeWindows.indexOf(window.id);
+				activeWindows.splice(index, 1);
+			}
+		);
 		callback();	
 	}	
 };
