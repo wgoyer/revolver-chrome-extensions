@@ -1,7 +1,6 @@
 /* global chrome */
 // Global Variables - When possible pulling from Local Storage set via Options page.
-var activeWindows = [],
-	tabsManifest = {},
+var	tabsManifest = {},
 	settings = {},
 	advSettings = {},
 	windowId,
@@ -57,7 +56,6 @@ function checkForAndMigrateOldSettings(callback){
 				delete localStorage[oldSettings[i]];
 			}
 		}
-		console.log(tempSettings);
 		if(JSON.stringify(tempSettings) != "{}"){
 			localStorage["revolverSettings"] = JSON.stringify(tempSettings);	
 		}
@@ -74,9 +72,11 @@ function assignBaseSettings(tabs, callback) {
 }
 // If the window has revolver tabs enabled, make sure the badge text reflects that.
 function setBadgeStatusOnActiveWindow(tab){
-	if(windowStatus[tab.windowId] === "on")	badgeTabs("on", tab.windowId);
+	if (windowStatus[tab.windowId] == undefined) return false;
+	else if (windowStatus[tab.windowId] === "on") badgeTabs("on", tab.windowId);
 	else if (windowStatus[tab.windowId] === "pause") badgeTabs("pause", tab.windowId);
-	else if (activeInWindow(tab.windowId)) badgeTabs("", tab.windowId);
+	else if (windowStatus[tab.windowId] === "off") badgeTabs("", tab.windowId);
+	else badgeTabs("", tab.windowId);
 }
 // If there are advanced settings for the URL, set them to the tab.
 function assignAdvancedSettings(tabs, callback) {
@@ -94,7 +94,7 @@ function assignAdvancedSettings(tabs, callback) {
 function grabTabSettings(windowId, tab, callback) {
 	for(var i=0; i<tabsManifest[windowId].length; i++){
 		if(tabsManifest[windowId][i].url === tab.url){
-			callback(tabsManifest[windowId][i]);
+			return callback(tabsManifest[windowId][i]);
 		}
 	}
 }
@@ -109,7 +109,7 @@ function addEventListeners(type, callback){
 	if(type === "startup"){
 		chrome.browserAction.onClicked.addListener(function(tab) {
 			windowId = tab.windowId;
-			if (activeInWindow(windowId)) {
+			if (windowStatus[windowId] == "on" || windowStatus[windowId] == "pause") {
 				stop(windowId);
 			} else {
 				createTabsManifest(windowId, function(){
@@ -119,6 +119,13 @@ function addEventListeners(type, callback){
 		});	
 		callback();
 	} else {
+		chrome.windows.onRemoved.addListener(
+			listeners.onWindowRemoved = function(windowId){
+				removeTimeout(windowId);
+				delete windowStatus[windowId];
+				delete tabsManifest[windowId];
+			}
+		);
 		chrome.tabs.onCreated.addListener(
 			listeners.onCreated = function (tab){
 				createTabsManifest(tab.windowId, function(){
@@ -154,10 +161,12 @@ function addEventListeners(type, callback){
 			}
 		);
 		chrome.tabs.onRemoved.addListener(
-			listeners.onRemoved = function(tabId, removedFromWindow){
-				createTabsManifest(removedFromWindow.windowId, function(){
-					return true;
-				});
+			listeners.onRemoved = function(tabId, removedInfo){
+				if(!removedInfo.isWindowClosing){
+					createTabsManifest(removedInfo.windowId, function(){
+						return true;
+					});	
+				}
 			}
 		);
 		chrome.windows.onCreated.addListener(
@@ -165,16 +174,7 @@ function addEventListeners(type, callback){
 				autoStartIfEnabled(window.id);
 			}
 		);
-		chrome.windows.onRemoved.addListener(
-			listeners.onWindowRemoved = function(window){
-				var index = activeWindows.indexOf(window.id);
-				activeWindows.splice(index, 1);
-				delete windowStatus[window.id];
-				delete tabsManifest[window.id];
-				removeTimeout(moverTimeOut[windowId]);
-			}
-		);
-		callback();	
+		callback();
 	}	
 };
 //Change the badge icon/background color.  
@@ -202,31 +202,12 @@ function badgeTabs(text, windowId) {
 function include(arr,url) {
     return (arr.indexOf(url) != -1);
 }
-//Helper method.  Checks if parameter exists in the activeWindows array which is populated by go()
-function activeInWindow(windowId){
-	for(var i in activeWindows) {
-		if(activeWindows[i] == windowId) {
-			return true;
-		}
-	}
-}
-// This stupid function exists because for whatever reason pushing the windowId to the array is duplicating windowIds.
-// when auto-start is enabled and the user creates a brand new window.  It's only called one time but still duplicated.  
-// Potential fix is to loop over the window status until it's finished loading then update the array?
-function addToActiveWindows(windowId){
-	for(var i=0;i<activeWindows.length;i++){
-		if(activeWindows[i] === windowId) return;
-	}
-	activeWindows.push(windowId);
-}
 // Start revolving the tabs
 function go(windowId) {
 	addEventListeners(null, function(){
 		chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
 			grabTabSettings(windowId, tab[0], function(tabSetting){
 				setMoverTimeout(windowId, tabSetting.seconds);
-				addToActiveWindows(windowId);
-				// activeWindows.push(windowId);
 				windowStatus[windowId] = "on";
 				badgeTabs('on', windowId);
 			});	
@@ -235,15 +216,11 @@ function go(windowId) {
 }
 // Stop revolving the tabs
 function stop(windowId) {
-	var index = activeWindows.indexOf(windowId);
 	removeTimeout(windowId);
-	if(index >= 0) {
-		activeWindows.splice(index, 1);
-		chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
-			windowStatus[windowId] = "off";
-			badgeTabs('', windowId);
-		});
-	}
+	chrome.tabs.query({"windowId": windowId, "active": true}, function(tab){
+		windowStatus[windowId] = "off";
+		badgeTabs('', windowId);
+	});
 }
 // Switch to the next tab.
 function activateTab(nextTab) {
@@ -314,13 +291,31 @@ function assignSettingsToTabs(tabs, callback){
 // Generate the timeout and assign it to moverTimeOut object.
 function setMoverTimeout(timerWindowId, seconds){
 	moverTimeOut[timerWindowId] = setTimeout(function(){
-		removeTimeout(timerWindowId);
-		moveTabIfIdle(timerWindowId, seconds);	
+		checkIfWindowExists(timerWindowId, function(value){
+			if(value === true){
+				removeTimeout(timerWindowId);
+				moveTabIfIdle(timerWindowId, seconds);		
+			} else {
+				removeTimeout(timerWindowId);
+			}
+		});
 	}, parseInt(seconds)*1000);
 }
 // Remove the timeout specified.
 function removeTimeout(windowId){
 	clearTimeout(moverTimeOut[windowId]);
+	moverTimeOut[windowId] = "off";
+}
+
+function checkIfWindowExists(windowId, callback){
+	chrome.windows.getAll(function(windows){
+		for(var i=0;i<windows.length;i++){
+			if(windows[i].id === windowId){
+				return callback(true);
+			}
+		}
+		return callback(false);
+	});
 }
 //If a user changes settings this will update them on the fly.  Called from options_script.js
 function updateSettings(){
