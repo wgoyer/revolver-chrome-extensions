@@ -219,7 +219,7 @@ function stop(windowId) {
 // Switch to the next tab.
 function activateTab(nextTab) {
 	grabTabSettings(nextTab.windowId, nextTab, function(tabSetting){
-		if(tabSetting.reload && !include(settings.noRefreshList, nextTab.url)){
+		if(tabSetting.reload && !include(settings.noRefreshList, nextTab.url) && nextTab.url.substring(0,19) != "chrome://extensions"){
 			chrome.tabs.reload(nextTab.id, function(){
 				chrome.tabs.update(nextTab.id, {selected: true}, function(){
 					setMoverTimeout(tabSetting.windowId, tabSetting.seconds);
