@@ -31,8 +31,8 @@ function autoStartIfEnabled(windowId){
 		createTabsManifest(windowId, function(){
 			go(windowId);
 		});
-	}	
-};
+	}
+}
 // Main start function:  Sets badge text to stop state, creates objects in local storage if they don't exist
 // and adds the event listeners to stop/start the extension as well as change badge text.  If autostart is
 // enabled the system will start revolver tabs without prompting.
@@ -138,7 +138,9 @@ function addEventListeners(callback){
 	);
 	chrome.tabs.onActivated.addListener(
 		listeners.onActivated = function(tab){
-			setBadgeStatusOnActiveWindow(tab);	
+			checkIfWindowExists(tab.windowId, function(windowExists){
+				if (windowExists == true) setBadgeStatusOnActiveWindow(tab);
+			});
 		}
 	);
 	chrome.tabs.onAttached.addListener(
@@ -291,6 +293,17 @@ function setMoverTimeout(timerWindowId, seconds){
 function removeTimeout(windowId){
 	clearTimeout(moverTimeOut[windowId]);
 	moverTimeOut[windowId] = "off";
+}
+// Chrome appears to try and activate tabs to 
+function checkIfWindowExists(windowId, callback){		
+	chrome.windows.getAll(function(windows){		
+		for(var i=0;i<windows.length;i++){		
+			if(windows[i].id === windowId){		
+				return callback(true);		
+			}		
+		}		
+		return callback(false);		
+	});		
 }
 //If a user changes settings this will update them on the fly.  Called from options_script.js
 function updateSettings(){
